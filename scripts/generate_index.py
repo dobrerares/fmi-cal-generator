@@ -551,8 +551,9 @@ def generate_index(site_dir: Path) -> str:
       const order = ['year-card','group-card','subgroup-card','types-card','subjects-card','preview-card'];
       const idx = order.indexOf(step);
       for (let i = idx; i < order.length; i++) disableCard(order[i]);
-      specData = null;
-      selectedGroup = null;
+      // Only null state that belongs to the reset level or below
+      if (idx <= order.indexOf('group-card')) specData = null;
+      if (idx <= order.indexOf('subgroup-card')) selectedGroup = null;
     }}
 
     // --- Load index ---
