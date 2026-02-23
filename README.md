@@ -19,7 +19,7 @@ Pick your specialization, year, group, and subgroup — get a calendar file that
 
 If this repo has GitHub Pages enabled, pre-built `.ics` files for every specialization/group/subgroup are available at:
 
-**[https://yourname.github.io/fmi-cal-generator/](https://yourname.github.io/fmi-cal-generator/)**
+**[https://dobrerares.github.io/fmi-cal-generator/](https://dobrerares.github.io/fmi-cal-generator/)**
 
 Find your specialization, expand your year, download your `.ics` file, and import it into Google Calendar. No installation needed.
 

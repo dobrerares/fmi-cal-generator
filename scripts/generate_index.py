@@ -499,7 +499,7 @@ def generate_index(site_dir: Path) -> str:
 
   <footer>
     Generated on {now} &middot; {total_files} pre-built calendars &middot;
-    <a href="https://github.com">Source on GitHub</a>
+    <a href="https://github.com/dobrerares/fmi-cal-generator">Source on GitHub</a>
   </footer>
 
   <script>
