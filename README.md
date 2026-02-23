@@ -15,7 +15,17 @@ Pick your specialization, year, group, and subgroup — get a calendar file that
 - **Event filtering** — choose which event types (courses, seminars, labs) and individual subjects to include
 - **Saves preferences** — re-run without re-entering your selection
 
-## Quick start
+## Just want to download your calendar?
+
+If this repo has GitHub Pages enabled, pre-built `.ics` files for every specialization/group/subgroup are available at:
+
+**[https://yourname.github.io/fmi-cal-generator/](https://yourname.github.io/fmi-cal-generator/)**
+
+Find your specialization, expand your year, download your `.ics` file, and import it into Google Calendar. No installation needed.
+
+Calendars are regenerated weekly (every Monday) to catch schedule changes.
+
+## Quick start (CLI)
 
 ### With pip
 
@@ -109,6 +119,13 @@ src/fmi_cal/
   calendar_gen.py   # Filter entries, generate .ics
   config.py         # Save/load preferences (~/.config/fmi-cal/config.yaml)
   cli.py            # Entry point: argparse + InquirerPy menus
+
+scripts/
+  generate_all.py   # Batch-generate .ics for all specs/groups/subgroups
+  generate_index.py # Generate static HTML landing page from site/ directory
+
+.github/workflows/
+  generate.yml      # Weekly cron + manual dispatch: generate + deploy to Pages
 ```
 
 ## Configuration

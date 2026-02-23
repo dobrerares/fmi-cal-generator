@@ -45,19 +45,19 @@ def filter_entries_for_student(
             result.append(entry)
             continue
 
-        # Check if it's for this group
-        if "/" in formation:
-            # Subgroup entry like "921/1"
+        # Exact match with group (handles both "921" and "243/1" style groups)
+        if formation == group:
+            result.append(entry)
+            continue
+
+        # Check if it's a subgroup of this group (e.g. "921/1" for group "921")
+        if "/" in formation and "/" not in group:
             entry_group, entry_sub = formation.split("/", 1)
             if entry_group != group:
                 continue
             if subgroup is not None and entry_sub != subgroup:
                 continue
             result.append(entry)
-        else:
-            # Whole-group entry like "921"
-            if formation == group:
-                result.append(entry)
 
     return result
 

@@ -12,3 +12,4 @@ venv/
 *.ics
 .mypy_cache/
 .pytest_cache/
+site/
