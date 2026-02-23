@@ -1,0 +1,25 @@
+[project]
+name = "fmi-cal-generator"
+version = "0.1.0"
+description = "Generate Google Calendar .ics files from UBB Cluj CS schedules"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+    "icalendar>=5.0",
+    "InquirerPy>=0.3.4",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+fmi-cal = "fmi_cal.cli:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
