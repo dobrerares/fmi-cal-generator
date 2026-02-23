@@ -60,6 +60,9 @@ def main() -> None:
     data_dir = output_dir / "data"
     data_dir.mkdir(exist_ok=True)
 
+    # CNAME for GitHub Pages custom domain
+    (output_dir / "CNAME").write_text("orar-fmi.rdobre.ro\n")
+
     # Determine base URL
     semester_arg = sys.argv[1] if len(sys.argv) > 1 else None
     if semester_arg:
