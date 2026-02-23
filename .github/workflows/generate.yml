@@ -2,8 +2,8 @@ name: Generate Calendars
 
 on:
   schedule:
-    # Every Monday at 06:00 UTC
-    - cron: "0 6 * * 1"
+    # Every Sunday at 18:00 UTC
+    - cron: "0 18 * * 0"
   workflow_dispatch:
     inputs:
       semester:

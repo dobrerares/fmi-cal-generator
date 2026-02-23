@@ -23,7 +23,7 @@ If this repo has GitHub Pages enabled, pre-built `.ics` files for every speciali
 
 Find your specialization, expand your year, download your `.ics` file, and import it into Google Calendar. No installation needed.
 
-Calendars are regenerated weekly (every Monday) to catch schedule changes.
+Calendars are regenerated weekly (every Sunday evening) to catch schedule changes.
 
 ## Quick start (CLI)
 
