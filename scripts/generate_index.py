@@ -633,6 +633,7 @@ def generate_index(site_dir: Path) -> str:
     let specData = null;    // {{ code, name, year, groups: [{{name, hasSubgroups, entries}}] }}
     let selectedGroup = null;
     let selectedSubgroup = 'all';
+    let restoring = false;
 
     const $ = s => document.querySelector(s);
     const $$ = s => document.querySelectorAll(s);
@@ -684,6 +685,7 @@ def generate_index(site_dir: Path) -> str:
         sel.value = spec.years[0].code;
         sel.dispatchEvent(new Event('change'));
       }}
+      saveState();
     }}
 
     // --- Load index + combobox ---
@@ -733,6 +735,7 @@ def generate_index(site_dir: Path) -> str:
         comboboxItems = data.specs.map((s, i) => ({{ name: s.name, index: i }}));
         $('#spec-input').placeholder = 'Select specialization\u2026';
         renderList('');
+        restoreState();
       }})
       .catch(() => {{
         $('#spec-input').placeholder = 'Failed to load data';
@@ -815,6 +818,7 @@ def generate_index(site_dir: Path) -> str:
             opt.textContent = `Group ${{g.name}}`;
             groupSel.appendChild(opt);
           }});
+          saveState();
         }})
         .catch(() => {{
           groupSel.innerHTML = '<option value="">Failed to load</option>';
@@ -1084,6 +1088,154 @@ def generate_index(site_dir: Path) -> str:
       const count = entries.reduce((sum, e) => sum + e.dates.length, 0);
       $('#event-count').textContent = count;
       $('#download-btn').disabled = count === 0;
+      saveState();
+    }}
+
+    // --- Persistence ---
+    function saveState() {{
+      if (restoring) return;
+      try {{
+        const state = {{}};
+        state.specIndex = $('#spec-select').value;
+        state.yearCode = $('#year-select').value;
+        state.groupIndex = $('#group-select').value;
+        state.subgroup = selectedSubgroup;
+        state.uncheckedTypes = [];
+        $$('#types-card input[type="checkbox"]').forEach(cb => {{
+          if (!cb.checked) state.uncheckedTypes.push(cb.dataset.type);
+        }});
+        state.excludedKeys = [];
+        $$('#subject-list input[data-key]').forEach(cb => {{
+          if (!cb.checked) state.excludedKeys.push(cb.dataset.key);
+        }});
+        localStorage.setItem('fmi-cal-state', JSON.stringify(state));
+      }} catch (e) {{}}
+    }}
+
+    function restoreState() {{
+      try {{
+        const raw = localStorage.getItem('fmi-cal-state');
+        if (!raw) return;
+        const state = JSON.parse(raw);
+        if (!state || state.specIndex === '' || state.specIndex == null) return;
+        if (!indexData.specs[state.specIndex]) return;
+
+        restoring = true;
+
+        const spec = indexData.specs[state.specIndex];
+        $('#spec-select').value = state.specIndex;
+        $('#spec-input').value = spec.name;
+
+        // Populate year options (same as onSpecChange)
+        const yearSel = $('#year-select');
+        yearSel.innerHTML = '<option value="">Select year&hellip;</option>';
+        spec.years.forEach(y => {{
+          const opt = document.createElement('option');
+          opt.value = y.code;
+          opt.textContent = `Year ${{y.year}}`;
+          yearSel.appendChild(opt);
+        }});
+        enableCard('year-card');
+
+        // Validate yearCode
+        if (!state.yearCode || !spec.years.some(y => y.code === state.yearCode)) {{
+          restoring = false;
+          return;
+        }}
+        yearSel.value = state.yearCode;
+
+        // Fetch year data
+        fetch(`data/${{state.yearCode}}.json`)
+          .then(r => r.json())
+          .then(data => {{
+            specData = data;
+
+            // Populate group options
+            const groupSel = $('#group-select');
+            groupSel.innerHTML = '<option value="">Select group&hellip;</option>';
+            data.groups.forEach((g, i) => {{
+              const opt = document.createElement('option');
+              opt.value = i;
+              opt.textContent = `Group ${{g.name}}`;
+              groupSel.appendChild(opt);
+            }});
+            enableCard('group-card');
+
+            // Validate groupIndex
+            const gi = state.groupIndex;
+            if (gi === '' || gi === null || gi === undefined || !data.groups[gi]) {{
+              restoring = false;
+              return;
+            }}
+            groupSel.value = gi;
+            selectedGroup = data.groups[gi];
+
+            // Build subgroup pills (same as group-change handler)
+            const group = selectedGroup;
+            const pills = $('#subgroup-pills');
+            pills.innerHTML = '';
+            if (group.hasSubgroups) {{
+              const savedSub = (state.subgroup === '1' || state.subgroup === '2') ? state.subgroup : 'all';
+              ['1','2','all'].forEach(v => {{
+                const lbl = document.createElement('label');
+                const inp = document.createElement('input');
+                inp.type = 'radio';
+                inp.name = 'subgroup';
+                inp.value = v;
+                if (v === savedSub) inp.checked = true;
+                const span = document.createElement('span');
+                span.textContent = v === 'all' ? 'Both' : `Subgroup ${{v}}`;
+                lbl.appendChild(inp);
+                lbl.appendChild(span);
+                pills.appendChild(lbl);
+                inp.addEventListener('change', () => {{
+                  selectedSubgroup = v;
+                  updateSubjects();
+                  updatePreview();
+                }});
+              }});
+              selectedSubgroup = savedSub;
+              enableCard('subgroup-card');
+            }} else {{
+              selectedSubgroup = 'all';
+            }}
+
+            // Restore unchecked types
+            if (state.uncheckedTypes && state.uncheckedTypes.length) {{
+              $$('#types-card input[type="checkbox"]').forEach(cb => {{
+                if (state.uncheckedTypes.includes(cb.dataset.type)) cb.checked = false;
+              }});
+            }}
+
+            enableCard('types-card');
+            enableCard('subjects-card');
+            enableCard('preview-card');
+
+            updateSubjects();
+
+            // Apply excludedKeys (uncheck matching inputs)
+            if (state.excludedKeys && state.excludedKeys.length) {{
+              const excSet = new Set(state.excludedKeys);
+              $$('#subject-list input[data-key]').forEach(cb => {{
+                if (excSet.has(cb.dataset.key)) cb.checked = false;
+              }});
+              // Sync all parent checkboxes
+              $$('#subject-list .subject-group').forEach(g => {{
+                const parentCb = g.querySelector('.subject-parent input');
+                const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
+                if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
+              }});
+            }}
+
+            updatePreview();
+            restoring = false;
+          }})
+          .catch(() => {{
+            restoring = false;
+          }});
+      }} catch (e) {{
+        restoring = false;
+      }}
     }}
 
     // --- ICS generation ---
