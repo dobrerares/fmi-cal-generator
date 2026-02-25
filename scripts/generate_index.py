@@ -350,6 +350,25 @@ def generate_index(site_dir: Path) -> str:
     }}
     .filter-header button:hover {{ background: var(--info-bg); }}
 
+    #subject-search {{
+      width: 100%;
+      padding: 0.65rem 0.75rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      background: var(--card);
+      color: var(--fg);
+      margin-bottom: 0.6rem;
+      transition: border-color 0.15s;
+    }}
+    #subject-search:focus {{
+      outline: none;
+      border-color: var(--accent);
+    }}
+    #subject-search::placeholder {{
+      color: var(--muted);
+    }}
+
     /* Preview + Download */
     .preview {{
       text-align: center;
@@ -494,6 +513,7 @@ def generate_index(site_dir: Path) -> str:
         <h3>Subjects</h3>
         <button id="toggle-subjects-btn">Deselect all</button>
       </div>
+      <input type="text" id="subject-search" placeholder="Filter subjects&hellip;" autocomplete="off" aria-label="Filter subjects" />
       <div class="check-group" id="subject-list"></div>
     </div>
 
@@ -833,17 +853,22 @@ def generate_index(site_dir: Path) -> str:
       }});
 
       updateToggleBtn();
+      $('#subject-search').value = '';
     }}
 
     function updateToggleBtn() {{
-      const cbs = $$('#subject-list input[data-key]');
-      const allChecked = [...cbs].every(cb => cb.checked);
+      const cbs = [...$$('#subject-list input[data-key]')].filter(
+        cb => cb.closest('label, .subject-group').style.display !== 'none'
+      );
+      const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
       $('#toggle-subjects-btn').textContent = allChecked ? 'Deselect all' : 'Select all';
     }}
 
     $('#toggle-subjects-btn').addEventListener('click', () => {{
-      const cbs = $$('#subject-list input[data-key]');
-      const allChecked = [...cbs].every(cb => cb.checked);
+      const cbs = [...$$('#subject-list input[data-key]')].filter(
+        cb => cb.closest('label, .subject-group').style.display !== 'none'
+      );
+      const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
       cbs.forEach(cb => {{ cb.checked = !allChecked; }});
       // Sync all parent checkboxes
       $$('#subject-list .subject-group').forEach(g => {{
@@ -853,6 +878,22 @@ def generate_index(site_dir: Path) -> str:
       }});
       updateToggleBtn();
       updatePreview();
+    }});
+
+    // --- Subject search ---
+    $('#subject-search').addEventListener('input', function() {{
+      const q = this.value.toLowerCase();
+      // Filter grouped subjects
+      $$('#subject-list .subject-group').forEach(g => {{
+        const name = g.querySelector('.subject-parent span').textContent.toLowerCase();
+        g.style.display = name.includes(q) ? '' : 'none';
+      }});
+      // Filter flat (single-type) labels
+      $$('#subject-list > label').forEach(lbl => {{
+        const spans = lbl.querySelectorAll('span');
+        const name = spans.length ? spans[0].textContent.toLowerCase() : '';
+        lbl.style.display = name.includes(q) ? '' : 'none';
+      }});
     }});
 
     // --- Filtering ---
