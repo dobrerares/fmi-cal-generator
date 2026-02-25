@@ -369,6 +369,61 @@ def generate_index(site_dir: Path) -> str:
       color: var(--muted);
     }}
 
+    .combobox {{
+      position: relative;
+    }}
+    .combobox input[type="text"] {{
+      width: 100%;
+      padding: 0.65rem 0.75rem;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 1rem;
+      background: var(--card);
+      color: var(--fg);
+      transition: border-color 0.15s;
+    }}
+    .combobox input[type="text"]:focus {{
+      outline: none;
+      border-color: var(--accent);
+    }}
+    .combobox input[type="text"]::placeholder {{
+      color: var(--muted);
+    }}
+    .combobox-list {{
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      max-height: 240px;
+      overflow-y: auto;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      z-index: 10;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }}
+    .combobox-list.open {{
+      display: block;
+    }}
+    .combobox-list li {{
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: background 0.1s;
+    }}
+    .combobox-list li:hover,
+    .combobox-list li.highlighted {{
+      background: var(--hover-bg);
+    }}
+    .combobox-list li.selected {{
+      font-weight: 600;
+      color: var(--accent);
+    }}
+
     /* Preview + Download */
     .preview {{
       text-align: center;
@@ -481,7 +536,11 @@ def generate_index(site_dir: Path) -> str:
 
     <div class="card" id="spec-card">
       <h3>Specialization</h3>
-      <select id="spec-select"><option value="">Loading&hellip;</option></select>
+      <div class="combobox" id="spec-combobox">
+        <input type="text" id="spec-input" placeholder="Loading&hellip;" autocomplete="off" />
+        <ul class="combobox-list" id="spec-list"></ul>
+        <input type="hidden" id="spec-select" value="" />
+      </div>
     </div>
 
     <div class="card disabled" id="year-card">
@@ -601,30 +660,16 @@ def generate_index(site_dir: Path) -> str:
       if (idx <= order.indexOf('subgroup-card')) selectedGroup = null;
     }}
 
-    // --- Load index ---
-    fetch('data/index.json')
-      .then(r => r.json())
-      .then(data => {{
-        indexData = data;
-        const sel = $('#spec-select');
-        sel.innerHTML = '<option value="">Select specialization&hellip;</option>';
-        data.specs.forEach((s, i) => {{
-          const opt = document.createElement('option');
-          opt.value = i;
-          opt.textContent = s.name;
-          sel.appendChild(opt);
-        }});
-      }})
-      .catch(() => {{
-        $('#spec-select').innerHTML = '<option value="">Failed to load data</option>';
-      }});
-
     // --- Spec change ---
-    $('#spec-select').addEventListener('change', function() {{
+    function onSpecChange(specIndex) {{
       resetFrom('year-card');
-      if (!this.value) return;
+      if (specIndex === '' || specIndex == null) return;
 
-      const spec = indexData.specs[this.value];
+      const spec = indexData.specs[specIndex];
+      if (!spec) return;
+
+      $('#spec-select').value = specIndex;
+
       const sel = $('#year-select');
       sel.innerHTML = '<option value="">Select year&hellip;</option>';
       spec.years.forEach(y => {{
@@ -635,10 +680,117 @@ def generate_index(site_dir: Path) -> str:
       }});
       enableCard('year-card');
 
-      // Auto-select if only one year
       if (spec.years.length === 1) {{
         sel.value = spec.years[0].code;
         sel.dispatchEvent(new Event('change'));
+      }}
+    }}
+
+    // --- Load index + combobox ---
+    let comboboxItems = [];
+    let highlightedIdx = -1;
+
+    function renderList(filter) {{
+      const list = $('#spec-list');
+      list.innerHTML = '';
+      highlightedIdx = -1;
+      const q = filter.toLowerCase();
+      comboboxItems.forEach((item, i) => {{
+        if (q && !item.name.toLowerCase().includes(q)) return;
+        const li = document.createElement('li');
+        li.textContent = item.name;
+        li.dataset.index = item.index;
+        if (String(item.index) === $('#spec-select').value) li.classList.add('selected');
+        li.addEventListener('mousedown', e => {{
+          e.preventDefault();
+          selectSpec(item.index, item.name);
+        }});
+        list.appendChild(li);
+      }});
+    }}
+
+    function openList() {{
+      $('#spec-list').classList.add('open');
+    }}
+    function closeList() {{
+      $('#spec-list').classList.remove('open');
+      highlightedIdx = -1;
+      // Remove highlights
+      $$('#spec-list li').forEach(li => li.classList.remove('highlighted'));
+    }}
+
+    function selectSpec(index, name) {{
+      $('#spec-select').value = index;
+      $('#spec-input').value = name;
+      closeList();
+      onSpecChange(index);
+    }}
+
+    fetch('data/index.json')
+      .then(r => r.json())
+      .then(data => {{
+        indexData = data;
+        comboboxItems = data.specs.map((s, i) => ({{ name: s.name, index: i }}));
+        $('#spec-input').placeholder = 'Select specialization\u2026';
+        renderList('');
+      }})
+      .catch(() => {{
+        $('#spec-input').placeholder = 'Failed to load data';
+        $('#spec-input').disabled = true;
+      }});
+
+    // --- Combobox events ---
+    const specInput = $('#spec-input');
+
+    specInput.addEventListener('focus', () => {{
+      if (blurTimeout) clearTimeout(blurTimeout);
+      specInput.select();
+      renderList(specInput.value);
+      openList();
+    }});
+
+    specInput.addEventListener('input', () => {{
+      renderList(specInput.value);
+      openList();
+    }});
+
+    let blurTimeout = null;
+    specInput.addEventListener('blur', () => {{
+      blurTimeout = setTimeout(() => {{
+        closeList();
+        // Revert text to current selection
+        const idx = $('#spec-select').value;
+        if (idx !== '' && indexData && indexData.specs[idx]) {{
+          specInput.value = indexData.specs[idx].name;
+        }} else {{
+          specInput.value = '';
+        }}
+      }}, 150);
+    }});
+
+    specInput.addEventListener('keydown', e => {{
+      const items = $$('#spec-list li');
+      if (!items.length) return;
+
+      if (e.key === 'ArrowDown') {{
+        e.preventDefault();
+        highlightedIdx = Math.min(highlightedIdx + 1, items.length - 1);
+        items.forEach((li, i) => li.classList.toggle('highlighted', i === highlightedIdx));
+        items[highlightedIdx].scrollIntoView({{ block: 'nearest' }});
+      }} else if (e.key === 'ArrowUp') {{
+        e.preventDefault();
+        highlightedIdx = Math.max(highlightedIdx - 1, -1);
+        items.forEach((li, i) => li.classList.toggle('highlighted', i === highlightedIdx));
+        if (highlightedIdx >= 0) items[highlightedIdx].scrollIntoView({{ block: 'nearest' }});
+      }} else if (e.key === 'Enter') {{
+        e.preventDefault();
+        if (highlightedIdx >= 0 && highlightedIdx < items.length) {{
+          const li = items[highlightedIdx];
+          selectSpec(Number(li.dataset.index), li.textContent);
+        }}
+      }} else if (e.key === 'Escape') {{
+        closeList();
+        specInput.blur();
       }}
     }});
 
