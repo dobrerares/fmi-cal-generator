@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FMI Calendar Generator - UBB Cluj</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>{{ css }}</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>FMI Calendar Generator</h1>
+      <p class="subtitle">UBB Cluj CS Schedule &rarr; Google Calendar</p>
+    </div>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme"></button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="builder">Custom Calendar</button>
+    <button class="tab" data-tab="download">Quick Download</button>
+  </div>
+
+  <!-- ===== CUSTOM CALENDAR BUILDER ===== -->
+  <div id="builder-section" class="tab-content active">
+
+    <div class="card" id="spec-card">
+      <h3>Specialization</h3>
+      <div class="combobox" id="spec-combobox">
+        <input type="text" id="spec-input" placeholder="Loading&hellip;" autocomplete="off" />
+        <ul class="combobox-list" id="spec-list"></ul>
+        <input type="hidden" id="spec-select" value="" />
+      </div>
+    </div>
+
+    <div class="card disabled" id="year-card">
+      <h3>Year</h3>
+      <select id="year-select"><option value="">Pick a specialization first</option></select>
+    </div>
+
+    <div class="card disabled" id="group-card">
+      <h3>Group</h3>
+      <select id="group-select"><option value="">Pick a year first</option></select>
+    </div>
+
+    <div class="card disabled" id="subgroup-card">
+      <h3>Subgroup</h3>
+      <div class="pill-group" id="subgroup-pills"></div>
+    </div>
+
+    <div class="card disabled" id="types-card">
+      <h3>Event Types</h3>
+      <div class="pill-group">
+        <label><input type="checkbox" data-type="Curs" checked><span>Courses</span></label>
+        <label><input type="checkbox" data-type="Seminar" checked><span>Seminars</span></label>
+        <label><input type="checkbox" data-type="Laborator" checked><span>Labs</span></label>
+      </div>
+    </div>
+
+    <div class="card disabled" id="subjects-card">
+      <div class="filter-header">
+        <h3>Subjects</h3>
+        <button id="toggle-subjects-btn">Deselect all</button>
+      </div>
+      <input type="text" id="subject-search" placeholder="Filter subjects&hellip;" autocomplete="off" aria-label="Filter subjects" />
+      <div class="check-group" id="subject-list"></div>
+    </div>
+
+    <div class="card disabled" id="preview-card">
+      <div class="preview">
+        <div class="event-count" id="event-count">0</div>
+        <div class="event-label">calendar events</div>
+        <button class="download-btn" id="download-btn" disabled>Download .ics</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== QUICK DOWNLOAD ===== -->
+  <div id="download-section" class="tab-content">
+    <div class="card" style="padding:1rem 1.5rem; margin-bottom:1rem;">
+      <strong>How to use:</strong>
+      <ol style="margin:0.5rem 0 0 1.5rem; font-size:0.9rem;">
+        <li>Find your specialization and group below</li>
+        <li>Download the <code>.ics</code> file</li>
+        <li>Open <a href="https://calendar.google.com/calendar/r/settings/export">Google Calendar Import</a></li>
+        <li>Select the downloaded file and click Import</li>
+      </ol>
+    </div>
+
+{{ file_tree_html }}
+  </div>
+
+  <footer>
+    Generated on {{ generated_date }} &middot; {{ total_files }} pre-built calendars &middot;
+    <a href="https://github.com/dobrerares/fmi-cal-generator">Source on GitHub</a>
+  </footer>
+
+  <script>{{ js }}</script>
+</body>
+</html>
