@@ -637,6 +637,30 @@ def generate_index(site_dir: Path) -> str:
 
     const $ = s => document.querySelector(s);
     const $$ = s => document.querySelectorAll(s);
+    function editDist(a, b) {{
+      if (a.length > b.length) {{ const t = a; a = b; b = t; }}
+      let prev = Array.from({{ length: a.length + 1 }}, (_, i) => i);
+      for (let j = 1; j <= b.length; j++) {{
+        const curr = [j];
+        for (let i = 1; i <= a.length; i++) {{
+          curr[i] = a[i-1] === b[j-1]
+            ? prev[i-1]
+            : 1 + Math.min(prev[i-1], prev[i], curr[i-1]);
+        }}
+        prev = curr;
+      }}
+      return prev[a.length];
+    }}
+    function fuzzyMatch(text, query) {{
+      const tokens = query.toLowerCase().split(/\\s+/).filter(Boolean);
+      if (!tokens.length) return true;
+      const words = text.toLowerCase().split(/\\s+/);
+      return tokens.every(tok => {{
+        const maxDist = tok.length >= 7 ? 2 : tok.length >= 4 ? 1 : 0;
+        return words.some(w => w.includes(tok) || editDist(tok, w) <= maxDist)
+          || text.toLowerCase().includes(tok);
+      }});
+    }}
 
     // --- Tabs ---
     $$('.tab').forEach(btn => {{
@@ -696,9 +720,8 @@ def generate_index(site_dir: Path) -> str:
       const list = $('#spec-list');
       list.innerHTML = '';
       highlightedIdx = -1;
-      const q = filter.toLowerCase();
       comboboxItems.forEach((item, i) => {{
-        if (q && !item.name.toLowerCase().includes(q)) return;
+        if (filter && !fuzzyMatch(item.name, filter)) return;
         const li = document.createElement('li');
         li.textContent = item.name;
         li.dataset.index = item.index;
@@ -1038,17 +1061,17 @@ def generate_index(site_dir: Path) -> str:
 
     // --- Subject search ---
     $('#subject-search').addEventListener('input', function() {{
-      const q = this.value.toLowerCase();
+      const q = this.value;
       // Filter grouped subjects
       $$('#subject-list .subject-group').forEach(g => {{
-        const name = g.querySelector('.subject-parent span').textContent.toLowerCase();
-        g.style.display = name.includes(q) ? '' : 'none';
+        const name = g.querySelector('.subject-parent span').textContent;
+        g.style.display = fuzzyMatch(name, q) ? '' : 'none';
       }});
       // Filter flat (single-type) labels
       $$('#subject-list > label').forEach(lbl => {{
         const spans = lbl.querySelectorAll('span');
-        const name = spans.length ? spans[0].textContent.toLowerCase() : '';
-        lbl.style.display = name.includes(q) ? '' : 'none';
+        const name = spans.length ? spans[0].textContent : '';
+        lbl.style.display = fuzzyMatch(name, q) ? '' : 'none';
       }});
       updateToggleBtn();
     }});
