@@ -1050,6 +1050,7 @@ def generate_index(site_dir: Path) -> str:
         const name = spans.length ? spans[0].textContent.toLowerCase() : '';
         lbl.style.display = name.includes(q) ? '' : 'none';
       }});
+      updateToggleBtn();
     }});
 
     // --- Filtering ---
