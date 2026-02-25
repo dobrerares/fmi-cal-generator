@@ -309,6 +309,31 @@ def generate_index(site_dir: Path) -> str:
     .badge-s {{ background: var(--badge-s-bg); color: var(--badge-s-fg); }}
     .badge-l {{ background: var(--badge-l-bg); color: var(--badge-l-fg); }}
 
+    .subject-group {{ margin-bottom: 0.15rem; }}
+    .subject-parent {{
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: background 0.1s;
+    }}
+    .subject-parent:hover {{ background: var(--hover-bg); }}
+    .subject-parent input[type="checkbox"] {{
+      width: 18px; height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer; flex-shrink: 0;
+    }}
+    .subject-children {{
+      padding-left: 1.75rem;
+    }}
+    .subject-children label {{
+      font-size: 0.9rem;
+    }}
+
     .filter-header {{
       display: flex;
       justify-content: space-between;
@@ -667,10 +692,20 @@ def generate_index(site_dir: Path) -> str:
       updatePreview();
     }});
 
-    // --- Type toggles ---
+    // --- Type toggles (batch check/uncheck matching subject entries) ---
     $$('#types-card input[type="checkbox"]').forEach(cb => {{
       cb.addEventListener('change', () => {{
-        updateSubjects();
+        const t = cb.dataset.type;
+        $$('#subject-list input[data-key]').forEach(sc => {{
+          if (sc.dataset.key.endsWith('|||' + t)) sc.checked = cb.checked;
+        }});
+        // Sync all parent checkboxes
+        $$('#subject-list .subject-group').forEach(g => {{
+          const parentCb = g.querySelector('.subject-parent input');
+          const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
+          if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
+        }});
+        updateToggleBtn();
         updatePreview();
       }});
     }});
@@ -684,65 +719,149 @@ def generate_index(site_dir: Path) -> str:
       return types;
     }}
 
+    function syncParent(parentCb, childCbs) {{
+      const total = childCbs.length;
+      const checked = childCbs.filter(c => c.checked).length;
+      parentCb.checked = checked === total;
+      parentCb.indeterminate = checked > 0 && checked < total;
+    }}
+
     function updateSubjects() {{
       if (!selectedGroup) return;
 
-      const types = getActiveTypes();
-      const filtered = filterEntries(selectedGroup, types, new Set());
-      const subjects = [...new Set(filtered.map(e => e.subject))].sort();
+      const allTypes = new Set(['Curs', 'Seminar', 'Laborator']);
+      const filtered = filterEntries(selectedGroup, allTypes, new Set());
+
+      // Build Map<subject, Set<type>>
+      const subjTypes = new Map();
+      filtered.forEach(e => {{
+        if (!subjTypes.has(e.subject)) subjTypes.set(e.subject, new Set());
+        subjTypes.get(e.subject).add(e.type);
+      }});
 
       const list = $('#subject-list');
-      // Preserve checked state for subjects that still exist
+      // Preserve checked state using composite keys
       const prev = {{}};
-      list.querySelectorAll('input').forEach(cb => {{ prev[cb.value] = cb.checked; }});
+      list.querySelectorAll('input[data-key]').forEach(cb => {{ prev[cb.dataset.key] = cb.checked; }});
 
       list.innerHTML = '';
       const BADGE = {{ 'Curs': ['C', 'badge-c'], 'Seminar': ['S', 'badge-s'], 'Laborator': ['L', 'badge-l'] }};
-      subjects.forEach(subj => {{
-        const entry = filtered.find(e => e.subject === subj);
-        const badge = BADGE[entry.type] || ['?',''];
-        const lbl = document.createElement('label');
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.value = subj;
-        cb.checked = prev[subj] !== undefined ? prev[subj] : true;
-        cb.addEventListener('change', updatePreview);
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = subj;
-        const badgeSpan = document.createElement('span');
-        badgeSpan.className = `type-badge ${{badge[1]}}`;
-        badgeSpan.textContent = badge[0];
-        lbl.appendChild(cb);
-        lbl.appendChild(nameSpan);
-        lbl.appendChild(badgeSpan);
-        list.appendChild(lbl);
+      const sortedSubjects = [...subjTypes.keys()].sort();
+
+      sortedSubjects.forEach(subj => {{
+        const typesSet = subjTypes.get(subj);
+        const typeArr = [...typesSet].sort();
+
+        if (typeArr.length === 1) {{
+          // Single type → flat row
+          const t = typeArr[0];
+          const key = subj + '|||' + t;
+          const badge = BADGE[t] || ['?',''];
+          const lbl = document.createElement('label');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.dataset.key = key;
+          cb.checked = prev[key] !== undefined ? prev[key] : true;
+          cb.addEventListener('change', () => {{ updateToggleBtn(); updatePreview(); }});
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = subj;
+          const badgeSpan = document.createElement('span');
+          badgeSpan.className = `type-badge ${{badge[1]}}`;
+          badgeSpan.textContent = badge[0];
+          lbl.appendChild(cb);
+          lbl.appendChild(nameSpan);
+          lbl.appendChild(badgeSpan);
+          list.appendChild(lbl);
+        }} else {{
+          // Multi-type → grouped with parent
+          const group = document.createElement('div');
+          group.className = 'subject-group';
+
+          const parentRow = document.createElement('div');
+          parentRow.className = 'subject-parent';
+          const parentCb = document.createElement('input');
+          parentCb.type = 'checkbox';
+          const parentName = document.createElement('span');
+          parentName.textContent = subj;
+          parentRow.appendChild(parentCb);
+          parentRow.appendChild(parentName);
+          group.appendChild(parentRow);
+
+          const childContainer = document.createElement('div');
+          childContainer.className = 'subject-children check-group';
+          const childCbs = [];
+
+          typeArr.forEach(t => {{
+            const key = subj + '|||' + t;
+            const badge = BADGE[t] || ['?',''];
+            const lbl = document.createElement('label');
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.dataset.key = key;
+            cb.checked = prev[key] !== undefined ? prev[key] : true;
+            cb.addEventListener('change', () => {{
+              syncParent(parentCb, childCbs);
+              updateToggleBtn();
+              updatePreview();
+            }});
+            childCbs.push(cb);
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = t === 'Curs' ? 'Course' : t === 'Seminar' ? 'Seminar' : t === 'Laborator' ? 'Lab' : t;
+            const badgeSpan = document.createElement('span');
+            badgeSpan.className = `type-badge ${{badge[1]}}`;
+            badgeSpan.textContent = badge[0];
+            lbl.appendChild(cb);
+            lbl.appendChild(nameSpan);
+            lbl.appendChild(badgeSpan);
+            childContainer.appendChild(lbl);
+          }});
+
+          group.appendChild(childContainer);
+          list.appendChild(group);
+
+          // Parent toggles all children
+          parentCb.addEventListener('change', () => {{
+            childCbs.forEach(c => {{ c.checked = parentCb.checked; }});
+            parentCb.indeterminate = false;
+            updateToggleBtn();
+            updatePreview();
+          }});
+
+          // Initial parent state
+          syncParent(parentCb, childCbs);
+        }}
       }});
 
-      // Update toggle button text
       updateToggleBtn();
     }}
 
     function updateToggleBtn() {{
-      const cbs = $$('#subject-list input');
+      const cbs = $$('#subject-list input[data-key]');
       const allChecked = [...cbs].every(cb => cb.checked);
       $('#toggle-subjects-btn').textContent = allChecked ? 'Deselect all' : 'Select all';
     }}
 
     $('#toggle-subjects-btn').addEventListener('click', () => {{
-      const cbs = $$('#subject-list input');
+      const cbs = $$('#subject-list input[data-key]');
       const allChecked = [...cbs].every(cb => cb.checked);
       cbs.forEach(cb => {{ cb.checked = !allChecked; }});
+      // Sync all parent checkboxes
+      $$('#subject-list .subject-group').forEach(g => {{
+        const parentCb = g.querySelector('.subject-parent input');
+        const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
+        if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
+      }});
       updateToggleBtn();
       updatePreview();
     }});
 
     // --- Filtering ---
-    function filterEntries(group, types, excludedSubjects) {{
+    function filterEntries(group, types, excludedKeys) {{
       const gName = group.name;
       const sub = selectedSubgroup;
       return group.entries.filter(e => {{
         if (!types.has(e.type)) return false;
-        if (excludedSubjects.has(e.subject)) return false;
+        if (excludedKeys.has(e.subject + '|||' + e.type)) return false;
         const f = e.formation;
         if (!/^\\d/.test(f)) return true;
         if (f === gName) return true;
@@ -759,12 +878,12 @@ def generate_index(site_dir: Path) -> str:
     // --- Preview ---
     function getFilteredEntries() {{
       if (!selectedGroup) return [];
-      const types = getActiveTypes();
+      const allTypes = new Set(['Curs', 'Seminar', 'Laborator']);
       const excluded = new Set();
-      $$('#subject-list input').forEach(cb => {{
-        if (!cb.checked) excluded.add(cb.value);
+      $$('#subject-list input[data-key]').forEach(cb => {{
+        if (!cb.checked) excluded.add(cb.dataset.key);
       }});
-      return filterEntries(selectedGroup, types, excluded);
+      return filterEntries(selectedGroup, allTypes, excluded);
     }}
 
     function updatePreview() {{
