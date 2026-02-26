@@ -8,7 +8,6 @@
 
   function getPreferredTheme() {
     const saved = localStorage.getItem('fmi-cal-theme');
-    if (saved === 'dark') return 'amoled';  // migrate removed theme
     if (saved && THEMES.includes(saved)) return saved;
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'amoled' : 'light';
   }
