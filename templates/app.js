@@ -3,13 +3,14 @@
 
   // --- Theme ---
   const themeBtn = document.getElementById('theme-toggle');
-  const THEMES = ['light', 'dark', 'amoled'];
-  const THEME_ICONS = { light: '\u2600\uFE0F', dark: '\uD83C\uDF19', amoled: '\u26AB' };
+  const THEMES = ['light', 'amoled'];
+  const THEME_ICONS = { light: '\u2600\uFE0F', amoled: '\uD83C\uDF19' };
 
   function getPreferredTheme() {
     const saved = localStorage.getItem('fmi-cal-theme');
+    if (saved === 'dark') return 'amoled';  // migrate removed theme
     if (saved && THEMES.includes(saved)) return saved;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'amoled' : 'light';
   }
 
   function applyTheme(theme) {

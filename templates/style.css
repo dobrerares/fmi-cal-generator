@@ -1,6 +1,6 @@
 /* ============================================================
    FMI Calendar Generator — shadcn/ui-inspired design
-   Three themes: Light (default), Dark, AMOLED
+   Two themes: Light (default), AMOLED
    ============================================================ */
 
 /* --- Reset --- */
@@ -33,44 +33,20 @@
   --card-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
 }
 
-[data-theme="dark"] {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #09090b;
-  --card-foreground: #fafafa;
-  --border: #27272a;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent: #27272a;
-  --primary: #fafafa;
-  --primary-foreground: #18181b;
-  --ring: #d4d4d8;
-
-  /* Badge colors — dark */
-  --badge-c-bg: #1e3a5f;
-  --badge-c-fg: #93c5fd;
-  --badge-s-bg: #451a03;
-  --badge-s-fg: #fcd34d;
-  --badge-l-bg: #052e16;
-  --badge-l-fg: #86efac;
-
-  --card-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
-}
-
 [data-theme="amoled"] {
   --background: #000000;
-  --foreground: #fafafa;
+  --foreground: #f5f5f5;
   --card: #000000;
-  --card-foreground: #fafafa;
-  --border: #18181b;
-  --muted: #0a0a0a;
-  --muted-foreground: #a1a1aa;
-  --accent: #18181b;
+  --card-foreground: #f5f5f5;
+  --border: #3f3f46;
+  --muted: #18181b;
+  --muted-foreground: #d4d4d8;
+  --accent: #27272a;
   --primary: #fafafa;
   --primary-foreground: #000000;
-  --ring: #52525b;
+  --ring: #71717a;
 
-  /* Badge colors — AMOLED (same as dark) */
+  /* Badge colors — AMOLED */
   --badge-c-bg: #1e3a5f;
   --badge-c-fg: #93c5fd;
   --badge-s-bg: #451a03;
@@ -78,8 +54,49 @@
   --badge-l-bg: #052e16;
   --badge-l-fg: #86efac;
 
-  --card-shadow: 0 1px 2px 0 rgba(0,0,0,0.3);
+  --card-shadow: 0 0 0 0 transparent;
 }
+
+/* --- Animations --- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes checkPop {
+  0% { transform: rotate(45deg) scale(0); }
+  60% { transform: rotate(45deg) scale(1.15); }
+  100% { transform: rotate(45deg) scale(1); }
+}
+
+@keyframes dashIn {
+  from { transform: translateY(-50%) scaleX(0); }
+  to { transform: translateY(-50%) scaleX(1); }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes subtlePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(250,250,250,0); }
+  50% { box-shadow: 0 0 12px 2px rgba(250,250,250,0.08); }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* --- Base --- */
 body {
@@ -91,7 +108,7 @@ body {
   color: var(--foreground);
   line-height: 1.5;
   font-size: 16px;
-  transition: background-color 0.2s, color 0.2s;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* --- Header --- */
@@ -100,6 +117,7 @@ body {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 1.5rem;
+  animation: fadeInUp 0.4s ease both;
 }
 
 h1 {
@@ -126,10 +144,13 @@ h1 {
   flex-shrink: 0;
   margin-top: 0.25rem;
   color: var(--foreground);
-  transition: background-color 0.2s, border-color 0.2s;
+  transition: background-color 0.2s, border-color 0.3s, transform 0.3s ease;
 }
 .theme-toggle:hover {
   background: var(--accent);
+}
+.theme-toggle:active {
+  transform: rotate(180deg);
 }
 .theme-toggle:focus-visible {
   outline: none;
@@ -142,6 +163,8 @@ h1 {
   gap: 1.5rem;
   margin-bottom: 1.5rem;
   border-bottom: 1px solid var(--border);
+  animation: fadeInUp 0.4s ease 0.05s both;
+  transition: border-color 0.3s ease;
 }
 
 .tab {
@@ -169,7 +192,10 @@ h1 {
 }
 
 .tab-content { display: none; }
-.tab-content.active { display: block; }
+.tab-content.active {
+  display: block;
+  animation: fadeInUp 0.25s ease both;
+}
 
 /* --- Cards --- */
 .card {
@@ -180,11 +206,24 @@ h1 {
   margin-bottom: 1rem;
   box-shadow: var(--card-shadow);
   color: var(--card-foreground);
-  transition: background-color 0.2s, border-color 0.2s;
+  transition: background-color 0.3s ease, border-color 0.3s ease,
+              opacity 0.35s ease, transform 0.35s ease;
+  animation: fadeInUp 0.4s ease both;
 }
+
+/* Stagger card entrance — each card delays a bit more */
+#spec-card     { animation-delay: 0.1s; }
+#year-card     { animation-delay: 0.15s; }
+#group-card    { animation-delay: 0.2s; }
+#subgroup-card { animation-delay: 0.25s; }
+#types-card    { animation-delay: 0.3s; }
+#subjects-card { animation-delay: 0.35s; }
+#preview-card  { animation-delay: 0.4s; }
+
 .card.disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   pointer-events: none;
+  transform: scale(0.99);
 }
 
 .card h3 {
@@ -194,33 +233,98 @@ h1 {
   letter-spacing: 0.03em;
   color: var(--muted-foreground);
   margin-bottom: 0.75rem;
+  transition: color 0.3s ease;
 }
 
-/* --- Selects --- */
-select {
+/* --- Inputs (shared base for select, combobox, search) --- */
+select,
+.combobox input[type="text"],
+#subject-search {
   width: 100%;
   height: 2.5rem;
-  padding: 0 2.5rem 0 0.75rem;
+  padding: 0 0.75rem;
   border: 1px solid var(--border);
   border-radius: 0.375rem;
   font-family: inherit;
   font-size: 0.875rem;
-  background-color: transparent;
+  background: transparent;
   color: var(--foreground);
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.3s;
+}
+
+select:focus,
+.combobox input[type="text"]:focus,
+#subject-search:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+select::placeholder,
+.combobox input[type="text"]::placeholder,
+#subject-search::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* --- Select-specific (match combobox visual) --- */
+select {
+  padding-right: 2.5rem;
   appearance: none;
+  -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2371717a' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   cursor: pointer;
-  transition: border-color 0.2s;
 }
 select option {
   background: var(--card);
   color: var(--foreground);
 }
-select:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
+
+/* --- Subject search spacing --- */
+#subject-search {
+  margin-bottom: 0.75rem;
+}
+
+/* --- Combobox --- */
+.combobox {
+  position: relative;
+}
+
+.combobox-list {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 0.375rem 0.375rem;
+  z-index: 10;
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem 0;
+  box-shadow: var(--card-shadow);
+}
+.combobox-list.open {
+  display: block;
+  animation: slideDown 0.15s ease both;
+}
+.combobox-list li {
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.1s;
+}
+.combobox-list li:hover,
+.combobox-list li.highlighted {
+  background: var(--accent);
+}
+.combobox-list li.selected {
+  font-weight: 600;
+  color: var(--primary);
 }
 
 /* --- Radio pills --- */
@@ -243,7 +347,7 @@ select:focus {
   font-size: 0.875rem;
   cursor: pointer;
   color: var(--foreground);
-  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
 }
 .pill-group input:checked + span {
   background: var(--primary);
@@ -253,8 +357,13 @@ select:focus {
 .pill-group span:hover {
   background: var(--accent);
 }
+.pill-group span:active {
+  transform: scale(0.97);
+}
 
-/* --- Checkboxes --- */
+/* ============================================================
+   Custom Checkboxes — CSS-only with animated checkmark
+   ============================================================ */
 .check-group {
   display: flex;
   flex-direction: column;
@@ -273,12 +382,77 @@ select:focus {
 .check-group label:hover {
   background: var(--accent);
 }
-.check-group input[type="checkbox"] {
+
+/* Shared custom checkbox base */
+.check-group input[type="checkbox"],
+.subject-parent input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
   width: 1rem;
   height: 1rem;
-  accent-color: var(--primary);
+  border: 1.5px solid var(--border);
+  border-radius: 0.25rem;
+  background: transparent;
   cursor: pointer;
+  position: relative;
   flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Hover ring */
+.check-group input[type="checkbox"]:hover,
+.subject-parent input[type="checkbox"]:hover {
+  border-color: var(--ring);
+}
+
+/* Checked state */
+.check-group input[type="checkbox"]:checked,
+.subject-parent input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+/* Animated checkmark */
+.check-group input[type="checkbox"]:checked::after,
+.subject-parent input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 3.5px;
+  top: 0.5px;
+  width: 4.5px;
+  height: 8px;
+  border: solid var(--primary-foreground);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(1);
+  animation: checkPop 0.2s ease both;
+}
+
+/* Indeterminate state (parent with partial children) */
+.check-group input[type="checkbox"]:indeterminate,
+.subject-parent input[type="checkbox"]:indeterminate {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.check-group input[type="checkbox"]:indeterminate::after,
+.subject-parent input[type="checkbox"]:indeterminate::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 8px;
+  height: 2px;
+  background: var(--primary-foreground);
+  transform: translateY(-50%);
+  animation: dashIn 0.15s ease both;
+  border: none;
+}
+
+/* Focus ring */
+.check-group input[type="checkbox"]:focus-visible,
+.subject-parent input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 /* --- Type badges (pill shape) --- */
@@ -290,6 +464,7 @@ select:focus {
   border-radius: 9999px;
   margin-left: auto;
   flex-shrink: 0;
+  transition: background-color 0.3s, color 0.3s;
 }
 .badge-c { background: var(--badge-c-bg); color: var(--badge-c-fg); }
 .badge-s { background: var(--badge-s-bg); color: var(--badge-s-fg); }
@@ -311,13 +486,6 @@ select:focus {
 }
 .subject-parent:hover {
   background: var(--accent);
-}
-.subject-parent input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--primary);
-  cursor: pointer;
-  flex-shrink: 0;
 }
 
 .subject-children {
@@ -353,88 +521,6 @@ select:focus {
   box-shadow: 0 0 0 2px var(--ring);
 }
 
-/* --- Subject search --- */
-#subject-search {
-  width: 100%;
-  height: 2.5rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  font-family: inherit;
-  font-size: 0.875rem;
-  background: transparent;
-  color: var(--foreground);
-  margin-bottom: 0.75rem;
-  transition: border-color 0.2s;
-}
-#subject-search:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
-}
-#subject-search::placeholder {
-  color: var(--muted-foreground);
-}
-
-/* --- Combobox --- */
-.combobox {
-  position: relative;
-}
-.combobox input[type="text"] {
-  width: 100%;
-  height: 2.5rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  font-family: inherit;
-  font-size: 0.875rem;
-  background: transparent;
-  color: var(--foreground);
-  transition: border-color 0.2s;
-}
-.combobox input[type="text"]:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
-}
-.combobox input[type="text"]::placeholder {
-  color: var(--muted-foreground);
-}
-
-.combobox-list {
-  display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  max-height: 240px;
-  overflow-y: auto;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-top: none;
-  border-radius: 0 0 0.375rem 0.375rem;
-  z-index: 10;
-  list-style: none;
-  margin: 0;
-  padding: 0.25rem 0;
-  box-shadow: var(--card-shadow);
-}
-.combobox-list.open {
-  display: block;
-}
-.combobox-list li {
-  padding: 0.5rem 0.75rem;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: background-color 0.15s;
-}
-.combobox-list li:hover,
-.combobox-list li.highlighted {
-  background: var(--accent);
-}
-.combobox-list li.selected {
-  font-weight: 600;
-  color: var(--primary);
-}
-
 /* --- Preview + Download --- */
 .preview {
   text-align: center;
@@ -445,6 +531,7 @@ select:focus {
   font-weight: 700;
   color: var(--foreground);
   letter-spacing: -0.025em;
+  transition: color 0.3s;
 }
 .event-label {
   color: var(--muted-foreground);
@@ -463,14 +550,21 @@ select:focus {
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.15s, box-shadow 0.3s;
 }
-.download-btn:hover {
+.download-btn:hover:not(:disabled) {
   opacity: 0.9;
+  transform: translateY(-1px);
+}
+.download-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
 }
 .download-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.35;
   cursor: not-allowed;
+}
+.download-btn:not(:disabled) {
+  animation: subtlePulse 3s ease-in-out infinite;
 }
 .download-btn:focus-visible {
   outline: none;
@@ -495,7 +589,6 @@ select:focus {
   margin-left: 0.5rem;
   vertical-align: middle;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
 
 /* --- Quick Download tree --- */
 #download-section details { margin-bottom: 0.25rem; }
@@ -508,14 +601,21 @@ select:focus {
   font-weight: 500;
   font-size: 0.875rem;
   list-style: none;
-  transition: background-color 0.15s;
+  transition: background-color 0.15s, border-color 0.3s;
 }
 #download-section details > summary:hover {
   background: var(--accent);
 }
 #download-section details > summary::-webkit-details-marker { display: none; }
-#download-section details > summary::before { content: "\25B6\FE0E  "; font-size: 0.7em; }
-#download-section details[open] > summary::before { content: "\25BC\FE0E  "; }
+#download-section details > summary::before {
+  content: "\25B6\FE0E  ";
+  font-size: 0.7em;
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+#download-section details[open] > summary::before {
+  content: "\25BC\FE0E  ";
+}
 #download-section details[open] > summary { border-radius: 0.375rem 0.375rem 0 0; }
 #download-section details > details { margin-left: 1.5rem; }
 #download-section details > details > summary { font-weight: 400; }
@@ -533,9 +633,9 @@ select:focus {
 a {
   color: var(--primary);
   text-decoration: none;
-  transition: color 0.15s;
+  transition: color 0.15s, opacity 0.15s;
 }
-a:hover { text-decoration: underline; }
+a:hover { text-decoration: underline; opacity: 0.8; }
 
 /* --- Footer --- */
 footer {
@@ -545,7 +645,7 @@ footer {
   color: var(--muted-foreground);
   font-size: 0.8rem;
   text-align: center;
-  transition: border-color 0.2s, color 0.2s;
+  transition: border-color 0.3s ease, color 0.3s ease;
 }
 
 /* --- Mobile --- */
@@ -556,4 +656,13 @@ footer {
   .pill-group span { padding: 0.5rem; font-size: 0.8125rem; }
   .tabs { gap: 1rem; }
   .card { padding: 1rem; }
+}
+
+/* --- Reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
