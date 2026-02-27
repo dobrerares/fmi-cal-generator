@@ -19,6 +19,7 @@
             requests
             beautifulsoup4
             icalendar
+            jinja2
             pyyaml
             pytest
             pip

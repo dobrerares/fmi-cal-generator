@@ -456,7 +456,7 @@
             ['1', '2', 'all'].forEach(sv => {
               const btn = document.createElement('button');
               btn.type = 'button';
-              btn.textContent = sv === 'all' ? 'Both' : `Sg ${sv}`;
+              btn.textContent = sv === 'all' ? 'Both' : `/${sv}`;
               if (sv === current) btn.classList.add('active');
               btn.addEventListener('click', e => {
                 e.preventDefault();
@@ -522,7 +522,7 @@
             ['1', '2', 'all'].forEach(sv => {
               const btn = document.createElement('button');
               btn.type = 'button';
-              btn.textContent = sv === 'all' ? 'Both' : `Sg ${sv}`;
+              btn.textContent = sv === 'all' ? 'Both' : `/${sv}`;
               if (sv === current) btn.classList.add('active');
               btn.addEventListener('click', e => {
                 e.preventDefault();
