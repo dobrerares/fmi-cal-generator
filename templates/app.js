@@ -662,6 +662,7 @@
       $$('#subject-list input[data-key]').forEach(cb => {
         if (!cb.checked) state.excludedKeys.push(cb.dataset.key);
       });
+      state.labSubgroupOverrides = labSubgroupOverrides;
       localStorage.setItem('fmi-cal-state', JSON.stringify(state));
     } catch (e) {}
   }
@@ -730,11 +731,15 @@
               pills.appendChild(lbl);
               inp.addEventListener('change', () => {
                 selectedSubgroup = v;
+                labSubgroupOverrides = {};
                 updateSubjects();
                 updatePreview();
               });
             });
             selectedSubgroup = savedSub;
+            if (state.labSubgroupOverrides) {
+              labSubgroupOverrides = state.labSubgroupOverrides;
+            }
             enableCard('subgroup-card');
           } else {
             selectedSubgroup = 'all';
