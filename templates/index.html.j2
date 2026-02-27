@@ -134,6 +134,19 @@
 {{ file_tree_html }}
   </div>
 
+  <!-- Bottom sheet for mobile controls -->
+  <div class="bottom-sheet-overlay" id="bottom-sheet-overlay"></div>
+  <div class="bottom-sheet" id="bottom-sheet">
+    <div class="bottom-sheet-handle"></div>
+    <div class="bottom-sheet-peek" id="bottom-sheet-peek">
+      <span class="bottom-sheet-peek-text" id="bottom-sheet-peek-text">Select options...</span>
+      <span style="font-size:0.75rem; color:var(--muted-foreground);">Tap to expand</span>
+    </div>
+    <div class="bottom-sheet-content" id="bottom-sheet-content">
+      <!-- Controls get cloned here by JS on mobile -->
+    </div>
+  </div>
+
   <footer>
     Generated on {{ generated_date }} &middot; {{ total_files }} pre-built calendars &middot;
     <a href="https://github.com/dobrerares/fmi-cal-generator">Source on GitHub</a>
