@@ -33,6 +33,13 @@
   let selectedSubgroup = 'all';
   let restoring = false;
   let labSubgroupOverrides = {};  // { subjectName: '1' | '2' | 'all' }
+  let selectedFreq = 'all';
+  let selectedMobileDay = 'Luni';
+
+  const DAYS = ['Luni', 'Marti', 'Miercuri', 'Joi', 'Vineri'];
+  const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const GRID_START = 8;
+  const GRID_END = 20;
 
   const $ = s => document.querySelector(s);
   const $$ = s => document.querySelectorAll(s);
@@ -167,7 +174,7 @@
   function disableCard(id) { $(`#${id}`).classList.add('disabled'); }
 
   function resetFrom(step) {
-    const order = ['year-card','group-card','subgroup-card','types-card','subjects-card','preview-card'];
+    const order = ['year-card','group-card','subgroup-card','types-card','subjects-card'];
     const idx = order.indexOf(step);
     for (let i = idx; i < order.length; i++) disableCard(order[i]);
     // Only null state that belongs to the reset level or below
@@ -241,7 +248,9 @@
       comboboxItems = data.specs.map((s, i) => ({ name: s.name, index: i }));
       $('#spec-input').placeholder = 'Select specialization\u2026';
       renderList('');
-      restoreState();
+      if (!restoreFromURL()) {
+        restoreState();
+      }
     })
     .catch(() => {
       $('#spec-input').placeholder = 'Failed to load data';
@@ -317,6 +326,45 @@
         specData = data;
         groupSelect.reset('Select group\u2026');
         groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
+        if (window._urlState) {
+          const us = window._urlState;
+          if (us.groupIndex !== null && us.groupIndex !== undefined) {
+            const gi = Number(us.groupIndex);
+            if (data.groups[gi]) {
+              groupSelect.selectItem(gi, `Group ${data.groups[gi].name}`);
+            }
+          }
+          if (us.freq && us.freq !== 'all') {
+            selectedFreq = us.freq;
+            const freqRadio = $(`#freq-toggle input[value="${us.freq}"]`);
+            if (freqRadio) freqRadio.checked = true;
+          }
+          // Apply subgroup + excluded after group cascade completes
+          // The group selectItem will trigger group onChange which builds subgroup pills
+          // We need to apply subgroup + excluded after that cascade
+          setTimeout(() => {
+            if (us.subgroup && us.subgroup !== 'all' && selectedGroup && selectedGroup.hasSubgroups) {
+              const subRadio = $(`#subgroup-pills input[value="${us.subgroup}"]`);
+              if (subRadio) {
+                subRadio.checked = true;
+                selectedSubgroup = us.subgroup;
+              }
+            }
+            if (us.excluded && us.excluded.length) {
+              const excSet = new Set(us.excluded);
+              $$('#subject-list input[data-key]').forEach(cb => {
+                if (excSet.has(cb.dataset.key)) cb.checked = false;
+              });
+              $$('#subject-list .subject-group').forEach(g => {
+                const parentCb = g.querySelector('.subject-parent input');
+                const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
+                if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
+              });
+            }
+            updatePreview();
+            delete window._urlState;
+          }, 100);
+        }
         saveState();
       })
       .catch(() => {
@@ -364,7 +412,6 @@
 
     enableCard('types-card');
     enableCard('subjects-card');
-    enableCard('preview-card');
     updateSubjects();
     updatePreview();
   });
@@ -637,13 +684,272 @@
     return filterEntries(selectedGroup, allTypes, excluded);
   }
 
-  function updatePreview() {
+  function filterByFrequency(entries, freq) {
+    if (freq === 'all') return entries;
+    return entries.filter(e => e.frequency === 'every' || e.frequency === freq);
+  }
+
+  function detectOverlaps(events) {
+    const sorted = events.slice().sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
+    const columns = [];
+
+    sorted.forEach(ev => {
+      let placed = false;
+      for (let c = 0; c < columns.length; c++) {
+        const lastInCol = columns[c][columns[c].length - 1];
+        if (lastInCol.endHour <= ev.startHour) {
+          columns[c].push(ev);
+          ev._col = c;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        ev._col = columns.length;
+        columns.push([ev]);
+      }
+    });
+
+    // Find max overlapping at each event's time range
+    sorted.forEach(ev => {
+      let maxCols = 0;
+      sorted.forEach(other => {
+        if (other.startHour < ev.endHour && other.endHour > ev.startHour) {
+          maxCols = Math.max(maxCols, other._col + 1);
+        }
+      });
+      ev._totalCols = maxCols;
+    });
+
+    return sorted;
+  }
+
+  function renderScheduleGrid() {
     const entries = getFilteredEntries();
     const count = entries.reduce((sum, e) => sum + e.dates.length, 0);
     $('#event-count').textContent = count;
     $('#download-btn').disabled = count === 0;
+    $('#share-btn').disabled = count === 0;
+
+    const filtered = filterByFrequency(entries, selectedFreq);
+
+    const grid = $('#schedule-grid');
+    const empty = $('#schedule-empty');
+
+    if (!selectedGroup || filtered.length === 0) {
+      grid.style.display = 'none';
+      empty.style.display = 'flex';
+      if (!selectedGroup) {
+        empty.querySelector('p').textContent = 'Select a specialization, year, and group to see your schedule';
+      } else {
+        empty.querySelector('p').textContent = 'No events match your current filters';
+      }
+      return;
+    }
+
+    empty.style.display = 'none';
+    grid.style.display = 'grid';
+    grid.innerHTML = '';
+
+    const isMobile = window.innerWidth <= 768;
+    const daysToShow = isMobile ? [selectedMobileDay] : DAYS;
+    const numDays = daysToShow.length;
+
+    grid.style.gridTemplateColumns = `3rem repeat(${numDays}, 1fr)`;
+
+    // Row 1: headers
+    const corner = document.createElement('div');
+    corner.className = 'grid-header grid-header-corner';
+    grid.appendChild(corner);
+
+    daysToShow.forEach((day, i) => {
+      const hdr = document.createElement('div');
+      hdr.className = 'grid-header';
+      hdr.textContent = DAY_LABELS[DAYS.indexOf(day)];
+      hdr.style.gridColumn = String(i + 2);
+      grid.appendChild(hdr);
+    });
+
+    // Hour rows
+    for (let h = GRID_START; h < GRID_END; h++) {
+      const rowIdx = (h - GRID_START) * 2 + 2;
+
+      const label = document.createElement('div');
+      label.className = 'grid-hour';
+      label.textContent = `${h}:00`;
+      label.style.gridRow = String(rowIdx);
+      label.style.gridColumn = '1';
+      grid.appendChild(label);
+
+      const line = document.createElement('div');
+      line.className = 'grid-line';
+      line.style.gridRow = String(rowIdx);
+      line.style.gridColumn = `2 / ${numDays + 2}`;
+      grid.appendChild(line);
+
+      const halfLine = document.createElement('div');
+      halfLine.className = 'grid-line-half';
+      halfLine.style.gridRow = String(rowIdx + 1);
+      halfLine.style.gridColumn = `2 / ${numDays + 2}`;
+      grid.appendChild(halfLine);
+    }
+
+    // Group entries by day
+    const byDay = {};
+    DAYS.forEach(d => { byDay[d] = []; });
+    filtered.forEach(e => {
+      if (byDay[e.day]) byDay[e.day].push(e);
+    });
+
+    // Render events
+    daysToShow.forEach((day, dayIdx) => {
+      const dayEvents = byDay[day];
+      if (!dayEvents.length) return;
+
+      const processed = detectOverlaps(dayEvents);
+
+      processed.forEach(ev => {
+        const startRow = (ev.startHour - GRID_START) * 2 + 2;
+        const endRow = (ev.endHour - GRID_START) * 2 + 2;
+
+        const el = document.createElement('div');
+        const typeClass = ev.type === 'Curs' ? 'type-curs'
+          : ev.type === 'Seminar' ? 'type-seminar' : 'type-laborator';
+        el.className = `schedule-event ${typeClass}`;
+
+        el.style.gridRow = `${startRow} / ${endRow}`;
+        el.style.gridColumn = String(dayIdx + 2);
+
+        if (ev._totalCols > 1) {
+          const pct = 100 / ev._totalCols;
+          el.style.width = `${pct}%`;
+          el.style.marginLeft = `${ev._col * pct}%`;
+        }
+
+        const BADGE = { 'Curs': '[C]', 'Seminar': '[S]', 'Laborator': '[L]' };
+
+        const subjEl = document.createElement('div');
+        subjEl.className = 'event-subject';
+        subjEl.textContent = ev.subject;
+        el.appendChild(subjEl);
+
+        const metaEl = document.createElement('div');
+        metaEl.className = 'event-meta';
+        metaEl.textContent = `${BADGE[ev.type] || ''} ${ev.room || ''}`;
+        el.appendChild(metaEl);
+
+        el.title = `${ev.subject}\n${BADGE[ev.type] || ev.type} | ${ev.room || 'No room'}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00`;
+
+        grid.appendChild(el);
+      });
+    });
+
     saveState();
   }
+
+  function updatePreview() {
+    renderScheduleGrid();
+  }
+
+  // --- Frequency toggle ---
+  $$('#freq-toggle input[type="radio"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      selectedFreq = radio.value;
+      renderScheduleGrid();
+    });
+  });
+
+  // --- Day tabs (mobile) ---
+  $$('.day-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      $$('.day-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedMobileDay = btn.dataset.day;
+      renderScheduleGrid();
+    });
+  });
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderScheduleGrid, 150);
+  });
+
+  // --- Bottom Sheet (mobile) ---
+  function initBottomSheet() {
+    const sheet = $('#bottom-sheet');
+    const overlay = $('#bottom-sheet-overlay');
+    const peek = $('#bottom-sheet-peek');
+    const peekText = $('#bottom-sheet-peek-text');
+    const content = $('#bottom-sheet-content');
+
+    if (!sheet) return;
+
+    function updatePeekText() {
+      const parts = [];
+      const specIdx = $('#spec-select').value;
+      if (specIdx !== '' && indexData && indexData.specs[specIdx]) {
+        const specName = indexData.specs[specIdx].name;
+        parts.push(specName.length > 20 ? specName.substring(0, 20) + '...' : specName);
+      }
+      const yearCode = $('#year-select').value;
+      if (yearCode) parts.push(yearCode);
+      if (selectedGroup) parts.push('G' + selectedGroup.name);
+      if (selectedSubgroup !== 'all') parts.push('/' + selectedSubgroup);
+
+      peekText.textContent = parts.length ? parts.join(' > ') : 'Select options...';
+    }
+
+    function expand() {
+      sheet.classList.add('expanded');
+      overlay.classList.add('visible');
+      const panel = $('#controls-panel');
+      if (panel && content.children.length === 0) {
+        Array.from(panel.children).forEach(card => {
+          content.appendChild(card);
+        });
+      }
+    }
+
+    function collapse() {
+      sheet.classList.remove('expanded');
+      overlay.classList.remove('visible');
+      const panel = $('#controls-panel');
+      if (panel && content.children.length > 0) {
+        Array.from(content.children).forEach(card => {
+          panel.appendChild(card);
+        });
+      }
+      updatePeekText();
+    }
+
+    peek.addEventListener('click', () => {
+      if (sheet.classList.contains('expanded')) {
+        collapse();
+      } else {
+        expand();
+      }
+    });
+
+    overlay.addEventListener('click', collapse);
+
+    let startY = 0;
+    const handle = sheet.querySelector('.bottom-sheet-handle');
+    if (handle) {
+      handle.addEventListener('touchstart', e => {
+        startY = e.touches[0].clientY;
+      }, { passive: true });
+
+      handle.addEventListener('touchmove', e => {
+        const dy = e.touches[0].clientY - startY;
+        if (dy > 80) collapse();
+      }, { passive: true });
+    }
+
+    window._updateBottomSheetPeek = updatePeekText;
+  }
+
+  initBottomSheet();
 
   // --- Persistence ---
   function saveState() {
@@ -664,6 +970,7 @@
       });
       state.labSubgroupOverrides = labSubgroupOverrides;
       localStorage.setItem('fmi-cal-state', JSON.stringify(state));
+      if (window._updateBottomSheetPeek) window._updateBottomSheetPeek();
     } catch (e) {}
   }
 
@@ -754,7 +1061,6 @@
 
           enableCard('types-card');
           enableCard('subjects-card');
-          enableCard('preview-card');
 
           updateSubjects();
 
@@ -781,6 +1087,78 @@
     } catch (e) {
       restoring = false;
     }
+  }
+
+  // --- Shareable URLs ---
+  function encodeStateToURL() {
+    const specIdx = $('#spec-select').value;
+    if (specIdx === '' || specIdx == null) return;
+
+    const yearCode = $('#year-select').value;
+    if (!yearCode) return;
+
+    const params = new URLSearchParams();
+    params.set('spec', yearCode);
+    const groupIdx = $('#group-select').value;
+    if (groupIdx !== '' && groupIdx != null) {
+      params.set('group', groupIdx);
+      if (selectedSubgroup !== 'all') params.set('sub', selectedSubgroup);
+    }
+    if (selectedFreq !== 'all') params.set('freq', selectedFreq);
+
+    const excluded = [];
+    $$('#subject-list input[data-key]').forEach(cb => {
+      if (!cb.checked) excluded.push(cb.dataset.key);
+    });
+    if (excluded.length) params.set('excl', excluded.join(','));
+
+    return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+  }
+
+  function decodeStateFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('spec')) return null;
+    return {
+      yearCode: params.get('spec'),
+      groupIndex: params.get('group'),
+      subgroup: params.get('sub') || 'all',
+      freq: params.get('freq') || 'all',
+      excluded: params.get('excl') ? params.get('excl').split(',') : [],
+    };
+  }
+
+  // Share button handler
+  $('#share-btn').addEventListener('click', () => {
+    const url = encodeStateToURL();
+    if (!url) return;
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        const btn = $('#share-btn');
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      });
+    }
+  });
+
+  // Restore from URL (takes priority over localStorage)
+  function restoreFromURL() {
+    const state = decodeStateFromURL();
+    if (!state || !indexData) return false;
+
+    let specIndex = null;
+    for (let i = 0; i < indexData.specs.length; i++) {
+      if (indexData.specs[i].years.some(y => y.code === state.yearCode)) {
+        specIndex = i;
+        break;
+      }
+    }
+    if (specIndex === null) return false;
+
+    window._urlState = state;
+    selectSpec(specIndex, indexData.specs[specIndex].name);
+    return true;
   }
 
   // --- ICS generation ---
