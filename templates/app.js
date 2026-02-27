@@ -447,6 +447,30 @@
         badgeSpan.textContent = badge[0];
         lbl.appendChild(cb);
         lbl.appendChild(nameSpan);
+
+          // Inline subgroup mini-pills for Lab-only subjects when global is "Both"
+          if (t === 'Laborator' && selectedSubgroup === 'all' && selectedGroup.hasSubgroups) {
+            const pills = document.createElement('span');
+            pills.className = 'sg-mini-pills';
+            const current = labSubgroupOverrides[subj] || 'all';
+            ['1', '2', 'all'].forEach(sv => {
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.textContent = sv === 'all' ? 'Both' : `Sg ${sv}`;
+              if (sv === current) btn.classList.add('active');
+              btn.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                labSubgroupOverrides[subj] = sv;
+                pills.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                updatePreview();
+              });
+              pills.appendChild(btn);
+            });
+            lbl.appendChild(pills);
+          }
+
         lbl.appendChild(badgeSpan);
         list.appendChild(lbl);
       } else {
@@ -489,6 +513,30 @@
           badgeSpan.textContent = badge[0];
           lbl.appendChild(cb);
           lbl.appendChild(nameSpan);
+
+          // Inline subgroup mini-pills for Lab when global is "Both"
+          if (t === 'Laborator' && selectedSubgroup === 'all' && selectedGroup.hasSubgroups) {
+            const pills = document.createElement('span');
+            pills.className = 'sg-mini-pills';
+            const current = labSubgroupOverrides[subj] || 'all';
+            ['1', '2', 'all'].forEach(sv => {
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.textContent = sv === 'all' ? 'Both' : `Sg ${sv}`;
+              if (sv === current) btn.classList.add('active');
+              btn.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                labSubgroupOverrides[subj] = sv;
+                pills.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                updatePreview();
+              });
+              pills.appendChild(btn);
+            });
+            lbl.appendChild(pills);
+          }
+
           lbl.appendChild(badgeSpan);
           childContainer.appendChild(lbl);
         });
@@ -567,7 +615,11 @@
       if (f.includes('/') && !gName.includes('/')) {
         const parts = f.split('/');
         if (parts[0] !== gName) return false;
-        if (sub && sub !== 'all' && parts[1] !== sub) return false;
+        // Per-subject override takes priority over global
+        const effectiveSub = (sub === 'all' && labSubgroupOverrides[e.subject])
+          ? labSubgroupOverrides[e.subject]
+          : sub;
+        if (effectiveSub && effectiveSub !== 'all' && parts[1] !== effectiveSub) return false;
         return true;
       }
       return false;
