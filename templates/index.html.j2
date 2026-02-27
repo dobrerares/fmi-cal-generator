@@ -25,65 +25,98 @@
 
   <!-- ===== CUSTOM CALENDAR BUILDER ===== -->
   <div id="builder-section" class="tab-content active">
+    <div class="app-layout">
 
-    <div class="card" id="spec-card">
-      <h3>Specialization</h3>
-      <div class="combobox" id="spec-combobox">
-        <input type="text" id="spec-input" placeholder="Loading&hellip;" autocomplete="off" />
-        <ul class="combobox-list" id="spec-list"></ul>
-        <input type="hidden" id="spec-select" value="" />
+      <!-- Left: Controls Panel -->
+      <div class="controls-panel" id="controls-panel">
+        <div class="card" id="spec-card">
+          <h3>Specialization</h3>
+          <div class="combobox" id="spec-combobox">
+            <input type="text" id="spec-input" placeholder="Loading&hellip;" autocomplete="off" />
+            <ul class="combobox-list" id="spec-list"></ul>
+            <input type="hidden" id="spec-select" value="" />
+          </div>
+        </div>
+
+        <div class="card disabled" id="year-card">
+          <h3>Year</h3>
+          <div class="custom-select" id="year-dropdown">
+            <button class="custom-select-trigger" id="year-trigger" type="button">Pick a specialization first</button>
+            <ul class="custom-select-list" id="year-list"></ul>
+            <input type="hidden" id="year-select" value="" />
+          </div>
+        </div>
+
+        <div class="card disabled" id="group-card">
+          <h3>Group</h3>
+          <div class="custom-select" id="group-dropdown">
+            <button class="custom-select-trigger" id="group-trigger" type="button">Pick a year first</button>
+            <ul class="custom-select-list" id="group-list"></ul>
+            <input type="hidden" id="group-select" value="" />
+          </div>
+        </div>
+
+        <div class="card disabled" id="subgroup-card">
+          <h3>Subgroup</h3>
+          <div class="pill-group" id="subgroup-pills"></div>
+        </div>
+
+        <div class="card disabled" id="types-card">
+          <h3>Event Types</h3>
+          <div class="pill-group">
+            <label><input type="checkbox" data-type="Curs" checked><span>Courses</span></label>
+            <label><input type="checkbox" data-type="Seminar" checked><span>Seminars</span></label>
+            <label><input type="checkbox" data-type="Laborator" checked><span>Labs</span></label>
+          </div>
+        </div>
+
+        <div class="card disabled" id="subjects-card">
+          <div class="filter-header">
+            <h3>Subjects</h3>
+            <button id="toggle-subjects-btn">Deselect all</button>
+          </div>
+          <input type="text" id="subject-search" placeholder="Filter subjects&hellip;" autocomplete="off" aria-label="Filter subjects" />
+          <div class="check-group" id="subject-list"></div>
+        </div>
       </div>
-    </div>
 
-    <div class="card disabled" id="year-card">
-      <h3>Year</h3>
-      <div class="custom-select" id="year-dropdown">
-        <button class="custom-select-trigger" id="year-trigger" type="button">Pick a specialization first</button>
-        <ul class="custom-select-list" id="year-list"></ul>
-        <input type="hidden" id="year-select" value="" />
+      <!-- Right: Schedule Panel -->
+      <div class="schedule-panel" id="schedule-panel">
+        <div class="schedule-toolbar">
+          <div class="schedule-info">
+            <span class="event-count-inline" id="event-count">0</span>
+            <span class="event-label-inline">events</span>
+          </div>
+          <div class="freq-toggle pill-group" id="freq-toggle">
+            <label><input type="radio" name="freq" value="all" checked><span>All</span></label>
+            <label><input type="radio" name="freq" value="sapt. 1"><span>Week 1</span></label>
+            <label><input type="radio" name="freq" value="sapt. 2"><span>Week 2</span></label>
+          </div>
+        </div>
+
+        <!-- Day tabs for mobile single-day view -->
+        <div class="day-tabs" id="day-tabs">
+          <button class="day-tab active" data-day="Luni">Mon</button>
+          <button class="day-tab" data-day="Marti">Tue</button>
+          <button class="day-tab" data-day="Miercuri">Wed</button>
+          <button class="day-tab" data-day="Joi">Thu</button>
+          <button class="day-tab" data-day="Vineri">Fri</button>
+        </div>
+
+        <div class="schedule-grid-wrapper" id="schedule-grid-wrapper">
+          <div class="schedule-empty" id="schedule-empty">
+            <p>Select a specialization, year, and group to see your schedule</p>
+          </div>
+          <div class="schedule-grid" id="schedule-grid" style="display:none;"></div>
+        </div>
+
+        <div class="schedule-actions">
+          <button class="download-btn" id="download-btn" disabled>Download .ics</button>
+          <button class="share-btn" id="share-btn" disabled>Copy link</button>
+        </div>
       </div>
-    </div>
 
-    <div class="card disabled" id="group-card">
-      <h3>Group</h3>
-      <div class="custom-select" id="group-dropdown">
-        <button class="custom-select-trigger" id="group-trigger" type="button">Pick a year first</button>
-        <ul class="custom-select-list" id="group-list"></ul>
-        <input type="hidden" id="group-select" value="" />
-      </div>
     </div>
-
-    <div class="card disabled" id="subgroup-card">
-      <h3>Subgroup</h3>
-      <div class="pill-group" id="subgroup-pills"></div>
-    </div>
-
-    <div class="card disabled" id="types-card">
-      <h3>Event Types</h3>
-      <div class="pill-group">
-        <label><input type="checkbox" data-type="Curs" checked><span>Courses</span></label>
-        <label><input type="checkbox" data-type="Seminar" checked><span>Seminars</span></label>
-        <label><input type="checkbox" data-type="Laborator" checked><span>Labs</span></label>
-      </div>
-    </div>
-
-    <div class="card disabled" id="subjects-card">
-      <div class="filter-header">
-        <h3>Subjects</h3>
-        <button id="toggle-subjects-btn">Deselect all</button>
-      </div>
-      <input type="text" id="subject-search" placeholder="Filter subjects&hellip;" autocomplete="off" aria-label="Filter subjects" />
-      <div class="check-group" id="subject-list"></div>
-    </div>
-
-    <div class="card disabled" id="preview-card">
-      <div class="preview">
-        <div class="event-count" id="event-count">0</div>
-        <div class="event-label">calendar events</div>
-        <button class="download-btn" id="download-btn" disabled>Download .ics</button>
-      </div>
-    </div>
-
   </div>
 
   <!-- ===== QUICK DOWNLOAD ===== -->
