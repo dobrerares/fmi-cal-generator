@@ -1371,18 +1371,36 @@
   }
 
   // Share button handler
+  function copyToClipboard(text) {
+    if (navigator.clipboard) {
+      return navigator.clipboard.writeText(text).catch(() => copyFallback(text));
+    }
+    return copyFallback(text);
+  }
+
+  function copyFallback(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    return Promise.resolve();
+  }
+
   $('#share-btn').addEventListener('click', () => {
     const url = encodeStateToURL();
     if (!url) return;
 
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url).then(() => {
-        const btn = $('#share-btn');
-        const orig = btn.textContent;
-        btn.textContent = 'Copied!';
-        setTimeout(() => { btn.textContent = orig; }, 2000);
-      });
-    }
+    copyToClipboard(url).then(() => {
+      const btn = $('#share-btn');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 2000);
+    });
   });
 
   // Restore from URL (takes priority over localStorage)
