@@ -29,6 +29,17 @@
   --badge-l-bg: #dcfce7;
   --badge-l-fg: #16a34a;
 
+  /* Schedule event colors */
+  --event-course-bg: #dbeafe;
+  --event-course-fg: #1e40af;
+  --event-course-border: #93c5fd;
+  --event-seminar-bg: #fef3c7;
+  --event-seminar-fg: #92400e;
+  --event-seminar-border: #fcd34d;
+  --event-lab-bg: #dcfce7;
+  --event-lab-fg: #166534;
+  --event-lab-border: #86efac;
+
   /* Card shadow */
   --card-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px -1px rgba(0,0,0,0.1);
 }
@@ -53,6 +64,17 @@
   --badge-s-fg: #fcd34d;
   --badge-l-bg: #052e16;
   --badge-l-fg: #86efac;
+
+  /* Schedule event colors */
+  --event-course-bg: #1e3a5f;
+  --event-course-fg: #93c5fd;
+  --event-course-border: #2563eb;
+  --event-seminar-bg: #451a03;
+  --event-seminar-fg: #fcd34d;
+  --event-seminar-border: #d97706;
+  --event-lab-bg: #052e16;
+  --event-lab-fg: #86efac;
+  --event-lab-border: #16a34a;
 
   --card-shadow: 0 0 0 0 transparent;
 }
