@@ -141,3 +141,21 @@ class TestGenerateIcs:
         ics_text = ics_bytes.decode("utf-8")
         assert "LOCATION:L338" in ics_text
         assert "Prof. Smith" in ics_text
+
+    def test_event_location_enriched_with_room_legend(self):
+        entries = [_make_entry(room="L338")]
+        cal = _make_calendar()
+        room_legend = {"L338": "FSEGA Building, Floor 3, Teodor Mihali St. 58-60"}
+        ics_bytes = generate_ics(entries, cal, room_legend)
+
+        ics_text = ics_bytes.decode("utf-8")
+        assert "LOCATION:L338\\, FSEGA Building\\, Floor 3\\, Teodor Mihali St. 58-60" in ics_text
+
+    def test_event_location_without_room_legend_match(self):
+        entries = [_make_entry(room="UnknownRoom")]
+        cal = _make_calendar()
+        room_legend = {"L338": "FSEGA Building"}
+        ics_bytes = generate_ics(entries, cal, room_legend)
+
+        ics_text = ics_bytes.decode("utf-8")
+        assert "LOCATION:UnknownRoom" in ics_text

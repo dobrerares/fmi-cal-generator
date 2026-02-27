@@ -71,6 +71,35 @@ def _fetch_html(url: str) -> BeautifulSoup:
     return BeautifulSoup(resp.content, "html.parser", from_encoding="iso-8859-2")
 
 
+def fetch_room_legend(base_url: str) -> dict[str, str]:
+    """Scrape the room legend table and return a mapping of room code → location.
+
+    The legend lives at {semester_root}/sali/legenda.html, where base_url
+    points to {semester_root}/tabelar.
+    """
+    # base_url is .../tabelar — go up one level to get semester root
+    semester_root = base_url.rsplit("/", 1)[0]
+    url = f"{semester_root}/sali/legenda.html"
+
+    soup = _fetch_html(url)
+    rooms: dict[str, str] = {}
+
+    table = soup.find("table")
+    if not table:
+        return rooms
+
+    for row in table.find_all("tr"):
+        cells = row.find_all("td")
+        if len(cells) < 2:
+            continue
+        code = cells[0].get_text(strip=True)
+        location = cells[1].get_text(strip=True)
+        if code and location:
+            rooms[code] = location
+
+    return rooms
+
+
 def fetch_specializations(base_url: str) -> list[Specialization]:
     """Parse the index.html page to get all available specializations."""
     soup = _fetch_html(f"{base_url}/index.html")

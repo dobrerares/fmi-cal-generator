@@ -78,6 +78,7 @@ def apply_user_filters(
 def generate_ics(
     entries: list[ScheduleEntry],
     calendar: AcademicCalendar,
+    room_legend: dict[str, str] | None = None,
 ) -> bytes:
     """Generate an .ics file as bytes.
 
@@ -120,7 +121,10 @@ def generate_ics(
                 ),
             )
             if entry.room:
-                event.add("location", entry.room)
+                loc = entry.room
+                if room_legend and entry.room in room_legend:
+                    loc = f"{entry.room}, {room_legend[entry.room]}"
+                event.add("location", loc)
             if entry.professor:
                 event.add("description", entry.professor)
 

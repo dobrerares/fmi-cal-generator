@@ -804,11 +804,7 @@ footer {
 }
 
 .controls-panel {
-  position: sticky;
-  top: 1rem;
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-  scrollbar-width: thin;
+  min-width: 0;
 }
 
 .schedule-panel {
@@ -816,6 +812,9 @@ footer {
   flex-direction: column;
   gap: 0.75rem;
   min-width: 0;
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
 }
 
 /* --- Schedule Toolbar --- */
@@ -924,7 +923,17 @@ footer {
 }
 .schedule-grid.entering { opacity: 0; }
 
+/* Seamless header background — single pseudo-element avoids cell-gap seams */
+.schedule-grid::before {
+  content: '';
+  grid-column: 1 / -1;
+  grid-row: 1;
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
 .grid-header {
+  grid-row: 1;
   padding: 0.5rem 0.25rem;
   text-align: center;
   font-size: 0.75rem;
@@ -932,18 +941,17 @@ footer {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--muted-foreground);
-  border-bottom: 1px solid var(--border);
-  background: var(--muted);
+  z-index: 1;
 }
 
 .grid-header-corner {
-  border-bottom: 1px solid var(--border);
-  background: var(--muted);
+  grid-row: 1;
+  z-index: 1;
 }
 
 .grid-hour {
   grid-column: 1;
-  padding: 0 0.375rem 0 0;
+  padding: 0.5rem 0.375rem 0 0;
   text-align: right;
   font-size: 0.6875rem;
   color: var(--muted-foreground);
@@ -984,6 +992,11 @@ footer {
 .schedule-event:hover {
   opacity: 0.85;
   z-index: 2;
+}
+
+/* Disable entrance animation after events settle (prevents replay on scroll) */
+.schedule-grid.settled .schedule-event {
+  animation: none;
 }
 
 .schedule-event.type-curs {
@@ -1152,6 +1165,11 @@ footer {
 
   .controls-panel {
     display: none;
+  }
+
+  .schedule-panel {
+    position: static;
+    max-height: none;
   }
 
   .day-tabs {

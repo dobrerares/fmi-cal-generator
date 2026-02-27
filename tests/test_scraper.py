@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from fmi_cal.scraper import fetch_specializations, fetch_group_schedules
+from fmi_cal.scraper import fetch_specializations, fetch_group_schedules, fetch_room_legend
 from fmi_cal.models import EventType, Frequency
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -84,3 +84,31 @@ class TestFetchGroupSchedules:
         assert len(week1_entries) > 0
         assert len(week2_entries) > 0
         assert len(every_week) > 0
+
+
+class TestFetchRoomLegend:
+    def test_parses_all_rooms(self):
+        with patch("fmi_cal.scraper._fetch_html", return_value=_mock_fetch_html("legenda.html")):
+            rooms = fetch_room_legend("https://fake/tabelar")
+
+        assert len(rooms) == 3
+        assert "2/I" in rooms
+        assert "L338" in rooms
+        assert "pi" in rooms
+
+    def test_room_location_content(self):
+        with patch("fmi_cal.scraper._fetch_html", return_value=_mock_fetch_html("legenda.html")):
+            rooms = fetch_room_legend("https://fake/tabelar")
+
+        assert "Kogalniceanu" in rooms["2/I"]
+        assert "FSEGA" in rooms["L338"]
+        assert "Ploiesti" in rooms["pi"]
+
+    def test_derives_url_from_base(self):
+        """The legend URL should be derived from the tabelar base URL."""
+        with patch("fmi_cal.scraper._fetch_html", return_value=_mock_fetch_html("legenda.html")) as mock:
+            fetch_room_legend("https://www.cs.ubbcluj.ro/files/orar/2025-2/tabelar")
+
+        mock.assert_called_once_with(
+            "https://www.cs.ubbcluj.ro/files/orar/2025-2/sali/legenda.html"
+        )

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from fmi_cal.academic import fetch_academic_calendar, get_dates_for_entry, get_study_line
 from fmi_cal.calendar_gen import filter_entries_for_student, generate_ics
 from fmi_cal.models import AcademicCalendar, GroupSchedule
-from fmi_cal.scraper import fetch_group_schedules, fetch_specializations, get_schedule_base_url
+from fmi_cal.scraper import fetch_group_schedules, fetch_room_legend, fetch_specializations, get_schedule_base_url
 
 
 def sanitize_dirname(name: str) -> str:
@@ -74,6 +74,17 @@ def main() -> None:
     semester_num = int(base_url.rstrip("/").split("/")[-2].split("-")[1])
     print(f"Base URL: {base_url}")
     print(f"Semester: {semester_num}")
+
+    # Fetch room legend (shared across all specs)
+    try:
+        room_legend = fetch_room_legend(base_url)
+        print(f"Room legend: {len(room_legend)} rooms")
+        rooms_path = data_dir / "rooms.json"
+        rooms_path.write_text(json.dumps(room_legend, ensure_ascii=False), encoding="utf-8")
+        print(f"Wrote {rooms_path}")
+    except Exception as e:
+        print(f"WARNING: Could not fetch room legend: {e}")
+        room_legend = {}
 
     # Fetch all specializations
     specs = fetch_specializations(base_url)
@@ -136,19 +147,19 @@ def main() -> None:
             if has_subgroups:
                 entries_1 = filter_entries_for_student(group_sched, group, "1")
                 if entries_1:
-                    ics = generate_ics(entries_1, acad_cal)
+                    ics = generate_ics(entries_1, acad_cal, room_legend)
                     (spec_dir / f"{safe_group}-1.ics").write_bytes(ics)
                     total_files += 1
 
                 entries_2 = filter_entries_for_student(group_sched, group, "2")
                 if entries_2:
-                    ics = generate_ics(entries_2, acad_cal)
+                    ics = generate_ics(entries_2, acad_cal, room_legend)
                     (spec_dir / f"{safe_group}-2.ics").write_bytes(ics)
                     total_files += 1
 
                 entries_all = filter_entries_for_student(group_sched, group, None)
                 if entries_all:
-                    ics = generate_ics(entries_all, acad_cal)
+                    ics = generate_ics(entries_all, acad_cal, room_legend)
                     (spec_dir / f"{safe_group}-all.ics").write_bytes(ics)
                     total_files += 1
 
@@ -156,7 +167,7 @@ def main() -> None:
             else:
                 entries = filter_entries_for_student(group_sched, group, None)
                 if entries:
-                    ics = generate_ics(entries, acad_cal)
+                    ics = generate_ics(entries, acad_cal, room_legend)
                     (spec_dir / f"{safe_group}.ics").write_bytes(ics)
                     total_files += 1
                 print(f"  Group {group}: {len(entries)} entries")

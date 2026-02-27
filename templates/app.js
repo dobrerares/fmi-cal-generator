@@ -35,6 +35,7 @@
   let labSubgroupOverrides = {};  // { subjectName: '1' | '2' | 'all' }
   let selectedFreq = 'all';
   let selectedMobileDay = 'Luni';
+  let roomLegend = {};  // { roomCode: "Full location string" }
 
   let _lastView = 'empty'; // 'empty' | 'grid'
   const DAYS = ['Luni', 'Marti', 'Miercuri', 'Joi', 'Vineri'];
@@ -289,6 +290,12 @@
       $('#spec-input').placeholder = 'Failed to load data';
       $('#spec-input').disabled = true;
     });
+
+  // Fetch room legend (non-blocking, enriches ICS and tooltips)
+  fetch('data/rooms.json')
+    .then(r => r.json())
+    .then(data => { roomLegend = data; })
+    .catch(() => {});
 
   // --- Combobox events ---
   const specInput = $('#spec-input');
@@ -937,8 +944,10 @@
           el.appendChild(freqEl);
         }
 
-        const titleText = `${ev.subject}\n${TYPE_LABEL[ev.type] || ev.type} | ${ev.room || 'No room'}${subgroupText ? '\n' + subgroupText : ''}${freqText ? '\n' + freqText : ''}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00`;
-        el.title = titleText;
+        const roomDisplay = ev.room || 'No room';
+        const roomDetail = (ev.room && roomLegend[ev.room]) ? `\n${roomLegend[ev.room]}` : '';
+        const titleText = `${ev.subject}\n${TYPE_LABEL[ev.type] || ev.type} | ${roomDisplay}${roomDetail}${subgroupText ? '\n' + subgroupText : ''}${freqText ? '\n' + freqText : ''}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00`;
+        if ('ontouchstart' in window) el.title = titleText;
         el.dataset.popup = titleText;
 
         el.style.animationDelay = `${Math.min(eventIdx * 20, 300)}ms`;
@@ -948,46 +957,90 @@
       });
     });
 
+    // Disable entrance animations after they finish (prevents replay on scroll)
+    setTimeout(() => grid.classList.add('settled'), 500);
+
     saveState();
   }
 
-  // --- Event popup for mobile tap ---
-  function dismissEventPopup() {
-    const old = document.querySelector('.event-popup');
-    if (!old || old.classList.contains('dismissing')) return;
-    old.classList.add('dismissing');
-    const fallback = setTimeout(() => old.remove(), 200);
-    old.addEventListener('transitionend', function handler() {
+  // --- Event popup (hover on desktop, tap on mobile) ---
+  let activePopup = null;
+  let hoveredEvent = null;
+
+  function removePopupNow() {
+    if (!activePopup) return;
+    activePopup.remove();
+    activePopup = null;
+  }
+
+  function dismissPopupAnimated() {
+    if (!activePopup) return;
+    const popup = activePopup;
+    activePopup = null;
+    popup.classList.add('dismissing');
+    const fallback = setTimeout(() => popup.remove(), 200);
+    popup.addEventListener('transitionend', function handler() {
       clearTimeout(fallback);
-      old.removeEventListener('transitionend', handler);
-      old.remove();
+      popup.removeEventListener('transitionend', handler);
+      popup.remove();
     });
   }
 
-  document.addEventListener('click', function(e) {
-    const ev = e.target.closest('.schedule-event');
-    if (!ev) { dismissEventPopup(); return; }
-    // Only show popup on touch devices (no hover)
-    if (!('ontouchstart' in window)) return;
-    e.preventDefault();
-    dismissEventPopup();
+  function showEventPopup(target) {
+    removePopupNow();
     const popup = document.createElement('div');
     popup.className = 'event-popup';
-    popup.textContent = ev.dataset.popup;
+    popup.textContent = target.dataset.popup;
     document.body.appendChild(popup);
-    // Position near the tapped event
-    const rect = ev.getBoundingClientRect();
+    const rect = target.getBoundingClientRect();
     const pw = popup.offsetWidth;
     const ph = popup.offsetHeight;
     let left = rect.left + rect.width / 2 - pw / 2;
     let top = rect.bottom + 8;
-    // Keep within viewport
     if (left < 8) left = 8;
     if (left + pw > window.innerWidth - 8) left = window.innerWidth - 8 - pw;
     if (top + ph > window.innerHeight - 8) top = rect.top - ph - 8;
     popup.style.left = left + 'px';
     popup.style.top = top + 'px';
+    activePopup = popup;
+  }
+
+  // Mobile: tap to show popup
+  document.addEventListener('click', function(e) {
+    const ev = e.target.closest('.schedule-event');
+    if (!ev) { dismissPopupAnimated(); return; }
+    if (!('ontouchstart' in window)) return;
+    e.preventDefault();
+    showEventPopup(ev);
   });
+
+  // Desktop: hover to show popup
+  const gridWrapper = document.querySelector('.schedule-grid-wrapper');
+  if (gridWrapper) {
+    gridWrapper.addEventListener('mouseover', function(e) {
+      if ('ontouchstart' in window) return;
+      const ev = e.target.closest('.schedule-event');
+      if (ev === hoveredEvent) return;
+      hoveredEvent = ev;
+      if (ev) {
+        showEventPopup(ev);
+      } else {
+        removePopupNow();
+      }
+    });
+
+    gridWrapper.addEventListener('mouseleave', function() {
+      if ('ontouchstart' in window) return;
+      hoveredEvent = null;
+      dismissPopupAnimated();
+    });
+  }
+
+  // Dismiss popup on scroll (prevents stale popups after scrolling away)
+  window.addEventListener('scroll', function() {
+    if (activePopup) removePopupNow();
+    hoveredEvent = null;
+  }, { passive: true });
 
   function updatePreview() {
     updateMiniPillsDisabled();
@@ -1387,7 +1440,10 @@
         lines.push(`DTSTART;TZID=Europe/Bucharest:${d}T${sh}0000`);
         lines.push(`DTEND;TZID=Europe/Bucharest:${d}T${eh}0000`);
         lines.push(`SUMMARY:${icsEscape(pfx + ' ' + e.subject)}`);
-        if (e.room) lines.push(`LOCATION:${icsEscape(e.room)}`);
+        if (e.room) {
+          const loc = roomLegend[e.room] ? `${e.room}, ${roomLegend[e.room]}` : e.room;
+          lines.push(`LOCATION:${icsEscape(loc)}`);
+        }
         if (e.professor) lines.push(`DESCRIPTION:${icsEscape(e.professor)}`);
         lines.push('END:VEVENT');
       }
