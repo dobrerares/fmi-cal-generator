@@ -36,6 +36,7 @@
   let selectedFreq = 'all';
   let selectedMobileDay = 'Luni';
 
+  let _lastView = 'empty'; // 'empty' | 'grid'
   const DAYS = ['Luni', 'Marti', 'Miercuri', 'Joi', 'Vineri'];
   const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
   const GRID_START = 8;
@@ -75,11 +76,17 @@
     const hidden = $(hiddenSel);
     let hlIdx = -1;
 
-    function open() { list.classList.add('open'); }
+    function open() { list.classList.remove('closing'); list.classList.add('open'); }
     function close() {
+      if (!list.classList.contains('open')) return;
       list.classList.remove('open');
+      list.classList.add('closing');
       hlIdx = -1;
       list.querySelectorAll('li').forEach(li => li.classList.remove('highlighted'));
+      list.addEventListener('animationend', function handler() {
+        list.removeEventListener('animationend', handler);
+        list.classList.remove('closing');
+      });
     }
     function isOpen() { return list.classList.contains('open'); }
 
@@ -243,13 +250,21 @@
   }
 
   function openList() {
-    $('#spec-list').classList.add('open');
+    const list = $('#spec-list');
+    list.classList.remove('closing');
+    list.classList.add('open');
   }
   function closeList() {
-    $('#spec-list').classList.remove('open');
+    const list = $('#spec-list');
+    if (!list.classList.contains('open')) return;
+    list.classList.remove('open');
+    list.classList.add('closing');
     highlightedIdx = -1;
-    // Remove highlights
     $$('#spec-list li').forEach(li => li.classList.remove('highlighted'));
+    list.addEventListener('animationend', function handler() {
+      list.removeEventListener('animationend', handler);
+      list.classList.remove('closing');
+    });
   }
 
   function selectSpec(index, name) {
@@ -447,6 +462,15 @@
     updatePreview();
   });
 
+  // --- Mini-pill disabled state ---
+  function updateMiniPillsDisabled() {
+    $$('.sg-mini-pills').forEach(p => {
+      const lbl = p.closest('label');
+      const cb = lbl && lbl.querySelector('input[data-key]');
+      p.classList.toggle('disabled', !!(cb && !cb.checked));
+    });
+  }
+
   // --- Type toggles (batch check/uncheck matching subject entries) ---
   $$('#types-card input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', () => {
@@ -636,12 +660,13 @@
     });
 
     updateToggleBtn();
+    updateMiniPillsDisabled();
     $('#subject-search').value = '';
   }
 
   function updateToggleBtn() {
     const cbs = [...$$('#subject-list input[data-key]')].filter(
-      cb => cb.closest('label, .subject-group').style.display !== 'none'
+      cb => !cb.closest('label, .subject-group').classList.contains('filtered-out')
     );
     const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
     $('#toggle-subjects-btn').textContent = allChecked ? 'Deselect all' : 'Select all';
@@ -649,7 +674,7 @@
 
   $('#toggle-subjects-btn').addEventListener('click', () => {
     const cbs = [...$$('#subject-list input[data-key]')].filter(
-      cb => cb.closest('label, .subject-group').style.display !== 'none'
+      cb => !cb.closest('label, .subject-group').classList.contains('filtered-out')
     );
     const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
     cbs.forEach(cb => { cb.checked = !allChecked; });
@@ -669,13 +694,13 @@
     // Filter grouped subjects
     $$('#subject-list .subject-group').forEach(g => {
       const name = g.querySelector('.subject-parent span').textContent;
-      g.style.display = fuzzyMatch(name, q) ? '' : 'none';
+      g.classList.toggle('filtered-out', !fuzzyMatch(name, q));
     });
     // Filter flat (single-type) labels
     $$('#subject-list > label').forEach(lbl => {
       const spans = lbl.querySelectorAll('span');
       const name = spans.length ? spans[0].textContent : '';
-      lbl.style.display = fuzzyMatch(name, q) ? '' : 'none';
+      lbl.classList.toggle('filtered-out', !fuzzyMatch(name, q));
     });
     updateToggleBtn();
   });
@@ -768,18 +793,34 @@
     const empty = $('#schedule-empty');
 
     if (!selectedGroup || filtered.length === 0) {
-      grid.style.display = 'none';
-      empty.style.display = 'flex';
       if (!selectedGroup) {
         empty.querySelector('p').textContent = 'Select a specialization, year, and group to see your schedule';
       } else {
         empty.querySelector('p').textContent = 'No events match your current filters';
       }
+      if (_lastView === 'grid') {
+        grid.style.display = 'none';
+        empty.style.display = 'flex';
+        empty.classList.add('hidden');
+        requestAnimationFrame(() => empty.classList.remove('hidden'));
+      } else {
+        grid.style.display = 'none';
+        empty.style.display = 'flex';
+      }
+      _lastView = 'empty';
       return;
     }
 
-    empty.style.display = 'none';
-    grid.style.display = 'grid';
+    if (_lastView === 'empty') {
+      empty.style.display = 'none';
+      grid.style.display = 'grid';
+      grid.classList.add('entering');
+      requestAnimationFrame(() => grid.classList.remove('entering'));
+    } else {
+      empty.style.display = 'none';
+      grid.style.display = 'grid';
+    }
+    _lastView = 'grid';
     grid.innerHTML = '';
 
     const isMobile = window.innerWidth <= 768;
@@ -836,6 +877,7 @@
     });
 
     // Render events
+    let eventIdx = 0;
     daysToShow.forEach((day, dayIdx) => {
       const dayEvents = byDay[day];
       if (!dayEvents.length) return;
@@ -888,14 +930,19 @@
         // Frequency (own row, only when viewing "All" and event is not every-week)
         let freqText = '';
         if (selectedFreq === 'all' && ev.frequency && ev.frequency !== 'every') {
-          freqText = ev.frequency === 'sapt. 1' ? 'Wk 1' : 'Wk 2';
+          freqText = ev.frequency === 'sapt. 1' ? 'Week 1' : 'Week 2';
           const freqEl = document.createElement('div');
           freqEl.className = 'event-meta';
           freqEl.textContent = freqText;
           el.appendChild(freqEl);
         }
 
-        el.title = `${ev.subject}\n${TYPE_LABEL[ev.type] || ev.type} | ${ev.room || 'No room'}${subgroupText ? '\n' + subgroupText : ''}${freqText ? '\n' + freqText : ''}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00`;
+        const titleText = `${ev.subject}\n${TYPE_LABEL[ev.type] || ev.type} | ${ev.room || 'No room'}${subgroupText ? '\n' + subgroupText : ''}${freqText ? '\n' + freqText : ''}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00`;
+        el.title = titleText;
+        el.dataset.popup = titleText;
+
+        el.style.animationDelay = `${Math.min(eventIdx * 20, 300)}ms`;
+        eventIdx++;
 
         grid.appendChild(el);
       });
@@ -904,7 +951,46 @@
     saveState();
   }
 
+  // --- Event popup for mobile tap ---
+  function dismissEventPopup() {
+    const old = document.querySelector('.event-popup');
+    if (!old || old.classList.contains('dismissing')) return;
+    old.classList.add('dismissing');
+    const fallback = setTimeout(() => old.remove(), 200);
+    old.addEventListener('transitionend', function handler() {
+      clearTimeout(fallback);
+      old.removeEventListener('transitionend', handler);
+      old.remove();
+    });
+  }
+
+  document.addEventListener('click', function(e) {
+    const ev = e.target.closest('.schedule-event');
+    if (!ev) { dismissEventPopup(); return; }
+    // Only show popup on touch devices (no hover)
+    if (!('ontouchstart' in window)) return;
+    e.preventDefault();
+    dismissEventPopup();
+    const popup = document.createElement('div');
+    popup.className = 'event-popup';
+    popup.textContent = ev.dataset.popup;
+    document.body.appendChild(popup);
+    // Position near the tapped event
+    const rect = ev.getBoundingClientRect();
+    const pw = popup.offsetWidth;
+    const ph = popup.offsetHeight;
+    let left = rect.left + rect.width / 2 - pw / 2;
+    let top = rect.bottom + 8;
+    // Keep within viewport
+    if (left < 8) left = 8;
+    if (left + pw > window.innerWidth - 8) left = window.innerWidth - 8 - pw;
+    if (top + ph > window.innerHeight - 8) top = rect.top - ph - 8;
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
+  });
+
   function updatePreview() {
+    updateMiniPillsDisabled();
     renderScheduleGrid();
   }
 
@@ -936,7 +1022,7 @@
   function initBottomSheet() {
     const sheet = $('#bottom-sheet');
     const overlay = $('#bottom-sheet-overlay');
-    const peek = $('#bottom-sheet-peek');
+    const header = $('#bottom-sheet-header');
     const peekText = $('#bottom-sheet-peek-text');
     const content = $('#bottom-sheet-content');
 
@@ -954,7 +1040,7 @@
       if (selectedGroup) parts.push('G' + selectedGroup.name);
       if (selectedSubgroup !== 'all') parts.push('/' + selectedSubgroup);
 
-      peekText.textContent = parts.length ? parts.join(' > ') : 'Select options...';
+      peekText.textContent = parts.length ? parts.join(' \u203A ') : 'Select options...';
     }
 
     function expand() {
@@ -971,37 +1057,47 @@
     function collapse() {
       sheet.classList.remove('expanded');
       overlay.classList.remove('visible');
-      const panel = $('#controls-panel');
-      if (panel && content.children.length > 0) {
-        Array.from(content.children).forEach(card => {
-          panel.appendChild(card);
-        });
-      }
       updatePeekText();
+      // Move cards back after slide-out animation finishes
+      function onDone() {
+        sheet.removeEventListener('transitionend', onDone);
+        if (sheet.classList.contains('expanded')) return; // re-expanded during animation
+        const panel = $('#controls-panel');
+        if (panel && content.children.length > 0) {
+          Array.from(content.children).forEach(card => {
+            panel.appendChild(card);
+          });
+        }
+      }
+      sheet.addEventListener('transitionend', onDone);
     }
 
-    peek.addEventListener('click', () => {
-      if (sheet.classList.contains('expanded')) {
-        collapse();
-      } else {
-        expand();
-      }
+    // Tap header to toggle
+    header.addEventListener('click', () => {
+      if (sheet.classList.contains('expanded')) collapse();
+      else expand();
     });
 
     overlay.addEventListener('click', collapse);
 
+    // Swipe on header to expand/collapse
     let startY = 0;
-    const handle = sheet.querySelector('.bottom-sheet-handle');
-    if (handle) {
-      handle.addEventListener('touchstart', e => {
-        startY = e.touches[0].clientY;
-      }, { passive: true });
+    let tracking = false;
 
-      handle.addEventListener('touchmove', e => {
-        const dy = e.touches[0].clientY - startY;
-        if (dy > 80) collapse();
-      }, { passive: true });
-    }
+    header.addEventListener('touchstart', e => {
+      startY = e.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+
+    header.addEventListener('touchmove', e => {
+      if (!tracking) return;
+      const dy = e.touches[0].clientY - startY;
+      const isExpanded = sheet.classList.contains('expanded');
+      if (isExpanded && dy > 50) { collapse(); tracking = false; }
+      if (!isExpanded && dy < -50) { expand(); tracking = false; }
+    }, { passive: true });
+
+    header.addEventListener('touchend', () => { tracking = false; }, { passive: true });
 
     window._updateBottomSheetPeek = updatePeekText;
   }
