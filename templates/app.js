@@ -328,20 +328,33 @@
         groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
         if (window._urlState) {
           const us = window._urlState;
+
+          // Apply unchecked types before group selection triggers updateSubjects
+          if (us.uncheckedTypes && us.uncheckedTypes.length) {
+            $$('#types-card input[type="checkbox"]').forEach(cb => {
+              if (us.uncheckedTypes.includes(cb.dataset.type)) cb.checked = false;
+            });
+          }
+
+          if (us.freq && us.freq !== 'all') {
+            selectedFreq = us.freq;
+            const freqRadio = $(`#freq-toggle input[value="${us.freq}"]`);
+            if (freqRadio) freqRadio.checked = true;
+          }
+
+          // Apply labSubgroupOverrides before group selection
+          if (us.labSubgroupOverrides && Object.keys(us.labSubgroupOverrides).length) {
+            labSubgroupOverrides = us.labSubgroupOverrides;
+          }
+
           if (us.groupIndex !== null && us.groupIndex !== undefined) {
             const gi = Number(us.groupIndex);
             if (data.groups[gi]) {
               groupSelect.selectItem(gi, `Group ${data.groups[gi].name}`);
             }
           }
-          if (us.freq && us.freq !== 'all') {
-            selectedFreq = us.freq;
-            const freqRadio = $(`#freq-toggle input[value="${us.freq}"]`);
-            if (freqRadio) freqRadio.checked = true;
-          }
+
           // Apply subgroup + excluded after group cascade completes
-          // The group selectItem will trigger group onChange which builds subgroup pills
-          // We need to apply subgroup + excluded after that cascade
           setTimeout(() => {
             if (us.subgroup && us.subgroup !== 'all' && selectedGroup && selectedGroup.hasSubgroups) {
               const subRadio = $(`#subgroup-pills input[value="${us.subgroup}"]`);
@@ -830,25 +843,41 @@
         }
 
         const BADGE = { 'Curs': '[C]', 'Seminar': '[S]', 'Laborator': '[L]' };
+        const TYPE_LABEL = { 'Curs': 'Course', 'Seminar': 'Seminar', 'Laborator': 'Lab' };
 
-        // Determine subgroup suffix if "Both" is selected and event is subgroup-specific
-        let subgroupTag = '';
-        if (selectedSubgroup === 'all' && ev.formation && ev.formation.includes('/')) {
-          const sgPart = ev.formation.split('/')[1];
-          if (sgPart === '1' || sgPart === '2') subgroupTag = ` /${sgPart}`;
-        }
-
+        // Subject name
         const subjEl = document.createElement('div');
         subjEl.className = 'event-subject';
         subjEl.textContent = ev.subject;
         el.appendChild(subjEl);
 
+        // Type + Room (same row)
         const metaEl = document.createElement('div');
         metaEl.className = 'event-meta';
-        metaEl.textContent = `${BADGE[ev.type] || ''}${subgroupTag} ${ev.room || ''}`;
+        metaEl.textContent = `${BADGE[ev.type] || ''} ${ev.room || ''}`;
         el.appendChild(metaEl);
 
-        el.title = `${ev.subject}\n${BADGE[ev.type] || ev.type}${subgroupTag} | ${ev.room || 'No room'}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00`;
+        // Subgroup (own row, only when "Both" selected and event is subgroup-specific)
+        let subgroupText = '';
+        if (selectedSubgroup === 'all' && ev.formation && ev.formation.includes('/')) {
+          subgroupText = ev.formation;
+          const sgEl = document.createElement('div');
+          sgEl.className = 'event-meta';
+          sgEl.textContent = subgroupText;
+          el.appendChild(sgEl);
+        }
+
+        // Frequency (own row, only when viewing "All" and event is not every-week)
+        let freqText = '';
+        if (selectedFreq === 'all' && ev.frequency && ev.frequency !== 'every') {
+          freqText = ev.frequency === 'sapt. 1' ? 'Wk 1' : 'Wk 2';
+          const freqEl = document.createElement('div');
+          freqEl.className = 'event-meta';
+          freqEl.textContent = freqText;
+          el.appendChild(freqEl);
+        }
+
+        el.title = `${ev.subject}\n${TYPE_LABEL[ev.type] || ev.type} | ${ev.room || 'No room'}${subgroupText ? '\n' + subgroupText : ''}${freqText ? '\n' + freqText : ''}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00`;
 
         grid.appendChild(el);
       });
@@ -1099,7 +1128,7 @@
     }
   }
 
-  // --- Shareable URLs ---
+  // --- Shareable URLs (base64-encoded JSON) ---
   function encodeStateToURL() {
     const specIdx = $('#spec-select').value;
     if (specIdx === '' || specIdx == null) return;
@@ -1107,34 +1136,71 @@
     const yearCode = $('#year-select').value;
     if (!yearCode) return;
 
-    const params = new URLSearchParams();
-    params.set('spec', yearCode);
+    const state = { s: yearCode }; // s = spec (yearCode)
+
     const groupIdx = $('#group-select').value;
     if (groupIdx !== '' && groupIdx != null) {
-      params.set('group', groupIdx);
-      if (selectedSubgroup !== 'all') params.set('sub', selectedSubgroup);
+      state.g = Number(groupIdx); // g = group index
+      if (selectedSubgroup !== 'all') state.sg = selectedSubgroup;
     }
-    if (selectedFreq !== 'all') params.set('freq', selectedFreq);
+    if (selectedFreq !== 'all') state.f = selectedFreq; // f = frequency
 
+    // Unchecked types
+    const uncheckedTypes = [];
+    $$('#types-card input[type="checkbox"]').forEach(cb => {
+      if (!cb.checked) uncheckedTypes.push(cb.dataset.type);
+    });
+    if (uncheckedTypes.length) state.ut = uncheckedTypes;
+
+    // Excluded subjects (use short keys: strip the type suffix for compactness)
     const excluded = [];
     $$('#subject-list input[data-key]').forEach(cb => {
       if (!cb.checked) excluded.push(cb.dataset.key);
     });
-    if (excluded.length) params.set('excl', excluded.join(','));
+    if (excluded.length) state.ex = excluded;
 
-    return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+    // Lab subgroup overrides
+    if (Object.keys(labSubgroupOverrides).length) state.lo = labSubgroupOverrides;
+
+    const json = JSON.stringify(state);
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    return `${window.location.origin}${window.location.pathname}?c=${b64}`;
   }
 
   function decodeStateFromURL() {
     const params = new URLSearchParams(window.location.search);
-    if (!params.has('spec')) return null;
-    return {
-      yearCode: params.get('spec'),
-      groupIndex: params.get('group'),
-      subgroup: params.get('sub') || 'all',
-      freq: params.get('freq') || 'all',
-      excluded: params.get('excl') ? params.get('excl').split(',') : [],
-    };
+
+    // Support new base64 format
+    if (params.has('c')) {
+      try {
+        const json = decodeURIComponent(escape(atob(params.get('c'))));
+        const state = JSON.parse(json);
+        return {
+          yearCode: state.s,
+          groupIndex: state.g !== undefined ? String(state.g) : null,
+          subgroup: state.sg || 'all',
+          freq: state.f || 'all',
+          uncheckedTypes: state.ut || [],
+          excluded: state.ex || [],
+          labSubgroupOverrides: state.lo || {},
+        };
+      } catch (e) { return null; }
+    }
+
+    // Legacy: plain params (backwards compat)
+    if (params.has('spec')) {
+      return {
+        yearCode: params.get('spec'),
+        groupIndex: params.get('group'),
+        subgroup: params.get('sub') || 'all',
+        freq: params.get('freq') || 'all',
+        uncheckedTypes: [],
+        excluded: params.get('excl') ? params.get('excl').split(',') : [],
+        labSubgroupOverrides: {},
+      };
+    }
+
+    return null;
   }
 
   // Share button handler
