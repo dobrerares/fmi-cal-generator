@@ -37,12 +37,20 @@
 
     <div class="card disabled" id="year-card">
       <h3>Year</h3>
-      <select id="year-select"><option value="">Pick a specialization first</option></select>
+      <div class="custom-select" id="year-dropdown">
+        <button class="custom-select-trigger" id="year-trigger" type="button">Pick a specialization first</button>
+        <ul class="custom-select-list" id="year-list"></ul>
+        <input type="hidden" id="year-select" value="" />
+      </div>
     </div>
 
     <div class="card disabled" id="group-card">
       <h3>Group</h3>
-      <select id="group-select"><option value="">Pick a year first</option></select>
+      <div class="custom-select" id="group-dropdown">
+        <button class="custom-select-trigger" id="group-trigger" type="button">Pick a year first</button>
+        <ul class="custom-select-list" id="group-list"></ul>
+        <input type="hidden" id="group-select" value="" />
+      </div>
     </div>
 
     <div class="card disabled" id="subgroup-card">

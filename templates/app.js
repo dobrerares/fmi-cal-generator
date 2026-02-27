@@ -60,6 +60,97 @@
     });
   }
 
+  // --- Custom select dropdown helper ---
+  function setupCustomSelect(triggerSel, listSel, hiddenSel, onChange) {
+    const trigger = $(triggerSel);
+    const list = $(listSel);
+    const hidden = $(hiddenSel);
+    let hlIdx = -1;
+
+    function open() { list.classList.add('open'); }
+    function close() {
+      list.classList.remove('open');
+      hlIdx = -1;
+      list.querySelectorAll('li').forEach(li => li.classList.remove('highlighted'));
+    }
+    function isOpen() { return list.classList.contains('open'); }
+
+    function selectItem(value, text) {
+      hidden.value = value;
+      trigger.textContent = text;
+      trigger.classList.remove('placeholder');
+      list.querySelectorAll('li').forEach(li =>
+        li.classList.toggle('selected', li.dataset.value === String(value))
+      );
+      close();
+      if (onChange) onChange(value);
+    }
+
+    function setItems(items) {
+      list.innerHTML = '';
+      hlIdx = -1;
+      items.forEach(item => {
+        const li = document.createElement('li');
+        li.textContent = item.text;
+        li.dataset.value = String(item.value);
+        if (String(item.value) === hidden.value) li.classList.add('selected');
+        li.addEventListener('mousedown', e => {
+          e.preventDefault();
+          selectItem(item.value, item.text);
+        });
+        list.appendChild(li);
+      });
+    }
+
+    function reset(text) {
+      hidden.value = '';
+      trigger.textContent = text;
+      trigger.classList.add('placeholder');
+      list.innerHTML = '';
+      close();
+    }
+
+    function setValue(value) {
+      const li = list.querySelector(`li[data-value="${value}"]`);
+      if (li) {
+        hidden.value = value;
+        trigger.textContent = li.textContent;
+        trigger.classList.remove('placeholder');
+        list.querySelectorAll('li').forEach(l => l.classList.toggle('selected', l === li));
+      }
+    }
+
+    trigger.addEventListener('click', () => { if (isOpen()) close(); else open(); });
+    document.addEventListener('mousedown', e => {
+      if (!trigger.contains(e.target) && !list.contains(e.target)) close();
+    });
+    trigger.addEventListener('keydown', e => {
+      const items = list.querySelectorAll('li');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (!isOpen()) { open(); return; }
+        hlIdx = Math.min(hlIdx + 1, items.length - 1);
+        items.forEach((li, i) => li.classList.toggle('highlighted', i === hlIdx));
+        items[hlIdx].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        hlIdx = Math.max(hlIdx - 1, 0);
+        items.forEach((li, i) => li.classList.toggle('highlighted', i === hlIdx));
+        if (items[hlIdx]) items[hlIdx].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (!isOpen()) { open(); return; }
+        if (hlIdx >= 0 && hlIdx < items.length) {
+          selectItem(items[hlIdx].dataset.value, items[hlIdx].textContent);
+        }
+      } else if (e.key === 'Escape') {
+        close();
+      }
+    });
+
+    return { selectItem, setItems, reset, setValue, close, open };
+  }
+
   // --- Tabs ---
   $$('.tab').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -93,19 +184,12 @@
 
     $('#spec-select').value = specIndex;
 
-    const sel = $('#year-select');
-    sel.innerHTML = '<option value="">Select year&hellip;</option>';
-    spec.years.forEach(y => {
-      const opt = document.createElement('option');
-      opt.value = y.code;
-      opt.textContent = `Year ${y.year}`;
-      sel.appendChild(opt);
-    });
+    yearSelect.reset('Select year\u2026');
+    yearSelect.setItems(spec.years.map(y => ({ value: y.code, text: `Year ${y.year}` })));
     enableCard('year-card');
 
     if (spec.years.length === 1) {
-      sel.value = spec.years[0].code;
-      sel.dispatchEvent(new Event('change'));
+      yearSelect.selectItem(spec.years[0].code, `Year ${spec.years[0].year}`);
     }
     saveState();
   }
@@ -218,40 +302,33 @@
     }
   });
 
-  // --- Year change (fetch spec JSON) ---
-  $('#year-select').addEventListener('change', function() {
+  // --- Year custom select (fetch spec JSON on change) ---
+  const yearSelect = setupCustomSelect('#year-trigger', '#year-list', '#year-select', function(code) {
     resetFrom('group-card');
-    if (!this.value) return;
+    if (!code) return;
 
-    const code = this.value;
-    const groupSel = $('#group-select');
-    groupSel.innerHTML = '<option value="">Loading&hellip;</option>';
+    groupSelect.reset('Loading\u2026');
     enableCard('group-card');
 
     fetch(`data/${code}.json`)
       .then(r => r.json())
       .then(data => {
         specData = data;
-        groupSel.innerHTML = '<option value="">Select group&hellip;</option>';
-        data.groups.forEach((g, i) => {
-          const opt = document.createElement('option');
-          opt.value = i;
-          opt.textContent = `Group ${g.name}`;
-          groupSel.appendChild(opt);
-        });
+        groupSelect.reset('Select group\u2026');
+        groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
         saveState();
       })
       .catch(() => {
-        groupSel.innerHTML = '<option value="">Failed to load</option>';
+        groupSelect.reset('Failed to load');
       });
   });
 
-  // --- Group change ---
-  $('#group-select').addEventListener('change', function() {
+  // --- Group custom select ---
+  const groupSelect = setupCustomSelect('#group-trigger', '#group-list', '#group-select', function(val) {
     resetFrom('subgroup-card');
-    if (!this.value || !specData) return;
+    if (val === '' || val == null || !specData) return;
 
-    const group = specData.groups[this.value];
+    const group = specData.groups[val];
     selectedGroup = group;
 
     // Subgroup pills
@@ -549,14 +626,7 @@
       $('#spec-input').value = spec.name;
 
       // Populate year options (same as onSpecChange)
-      const yearSel = $('#year-select');
-      yearSel.innerHTML = '<option value="">Select year&hellip;</option>';
-      spec.years.forEach(y => {
-        const opt = document.createElement('option');
-        opt.value = y.code;
-        opt.textContent = `Year ${y.year}`;
-        yearSel.appendChild(opt);
-      });
+      yearSelect.setItems(spec.years.map(y => ({ value: y.code, text: `Year ${y.year}` })));
       enableCard('year-card');
 
       // Validate yearCode
@@ -564,7 +634,7 @@
         restoring = false;
         return;
       }
-      yearSel.value = state.yearCode;
+      yearSelect.setValue(state.yearCode);
 
       // Fetch year data
       fetch(`data/${state.yearCode}.json`)
@@ -573,14 +643,7 @@
           specData = data;
 
           // Populate group options
-          const groupSel = $('#group-select');
-          groupSel.innerHTML = '<option value="">Select group&hellip;</option>';
-          data.groups.forEach((g, i) => {
-            const opt = document.createElement('option');
-            opt.value = i;
-            opt.textContent = `Group ${g.name}`;
-            groupSel.appendChild(opt);
-          });
+          groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
           enableCard('group-card');
 
           // Validate groupIndex
@@ -589,7 +652,7 @@
             restoring = false;
             return;
           }
-          groupSel.value = gi;
+          groupSelect.setValue(gi);
           selectedGroup = data.groups[gi];
 
           // Build subgroup pills (same as group-change handler)
