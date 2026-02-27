@@ -177,9 +177,27 @@
     const order = ['year-card','group-card','subgroup-card','types-card','subjects-card'];
     const idx = order.indexOf(step);
     for (let i = idx; i < order.length; i++) disableCard(order[i]);
-    // Only null state that belongs to the reset level or below
+    // Null state that belongs to the reset level or below
     if (idx <= order.indexOf('group-card')) specData = null;
-    if (idx <= order.indexOf('subgroup-card')) selectedGroup = null;
+    if (idx <= order.indexOf('subgroup-card')) {
+      selectedGroup = null;
+      selectedSubgroup = 'all';
+      labSubgroupOverrides = {};
+    }
+    // Reset types to all checked
+    if (idx <= order.indexOf('types-card')) {
+      $$('#types-card input[type="checkbox"]').forEach(cb => { cb.checked = true; });
+    }
+    // Clear subject list
+    if (idx <= order.indexOf('subjects-card')) {
+      $('#subject-list').innerHTML = '';
+    }
+    // Reset frequency toggle
+    selectedFreq = 'all';
+    const freqAll = $('#freq-toggle input[value="all"]');
+    if (freqAll) freqAll.checked = true;
+    // Clear schedule grid
+    renderScheduleGrid();
   }
 
   // --- Spec change ---
