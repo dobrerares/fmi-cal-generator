@@ -32,6 +32,7 @@
   let selectedGroup = null;
   let selectedSubgroup = 'all';
   let restoring = false;
+  let labSubgroupOverrides = {};  // { subjectName: '1' | '2' | 'all' }
 
   const $ = s => document.querySelector(s);
   const $$ = s => document.querySelectorAll(s);
@@ -326,6 +327,7 @@
   // --- Group custom select ---
   const groupSelect = setupCustomSelect('#group-trigger', '#group-list', '#group-select', function(val) {
     resetFrom('subgroup-card');
+    labSubgroupOverrides = {};
     if (val === '' || val == null || !specData) return;
 
     const group = specData.groups[val];
@@ -349,6 +351,7 @@
         pills.appendChild(lbl);
         inp.addEventListener('change', () => {
           selectedSubgroup = v;
+          labSubgroupOverrides = {};
           updateSubjects();
           updatePreview();
         });
