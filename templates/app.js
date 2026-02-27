@@ -1234,6 +1234,17 @@
 
     window._urlState = state;
     selectSpec(specIndex, indexData.specs[specIndex].name);
+
+    // For multi-year specs, onSpecChange only auto-selects when there's 1 year.
+    // Explicitly select the correct year so the cascade continues.
+    const spec = indexData.specs[specIndex];
+    if (spec.years.length > 1) {
+      const yearMatch = spec.years.find(y => y.code === state.yearCode);
+      if (yearMatch) {
+        yearSelect.selectItem(yearMatch.code, `Year ${yearMatch.year}`);
+      }
+    }
+
     return true;
   }
 
