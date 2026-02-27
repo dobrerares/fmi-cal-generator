@@ -639,35 +639,33 @@ h1 {
   font-size: 0.875rem;
 }
 
-.download-btn {
-  display: inline-block;
-  margin-top: 1rem;
-  padding: 0.625rem 1.5rem;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  border: none;
+.download-btn,
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1.25rem;
+  background: transparent;
+  color: var(--foreground);
+  border: 1px solid var(--border);
   border-radius: 0.375rem;
   font-family: inherit;
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity 0.2s, transform 0.15s, box-shadow 0.3s;
+  transition: background-color 0.2s, border-color 0.2s, opacity 0.2s;
 }
-.download-btn:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
+.download-btn:hover:not(:disabled),
+.share-btn:hover:not(:disabled) {
+  background: var(--accent);
 }
-.download-btn:active:not(:disabled) {
-  transform: translateY(0) scale(0.98);
-}
-.download-btn:disabled {
+.download-btn:disabled,
+.share-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
-.download-btn:not(:disabled) {
-  animation: subtlePulse 3s ease-in-out infinite;
-}
-.download-btn:focus-visible {
+.download-btn:focus-visible,
+.share-btn:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--ring);
 }
@@ -870,14 +868,12 @@ footer {
 }
 
 .schedule-grid {
-  --grid-start-hour: 8;
-  --grid-end-hour: 20;
-  --grid-rows: 12;
   --hour-height: 3.5rem;
 
   display: grid;
   grid-template-columns: 3rem repeat(5, 1fr);
-  grid-template-rows: auto repeat(calc(var(--grid-rows) * 2), calc(var(--hour-height) / 2));
+  /* 12 hours x 2 half-hour rows + 1 final row for 20:00 label */
+  grid-template-rows: auto repeat(25, calc(var(--hour-height) / 2));
 }
 
 .grid-header {
@@ -903,9 +899,10 @@ footer {
   text-align: right;
   font-size: 0.6875rem;
   color: var(--muted-foreground);
-  position: relative;
-  top: -0.4em;
   line-height: 1;
+  display: flex;
+  align-items: start;
+  justify-content: flex-end;
 }
 
 .grid-line {
@@ -980,30 +977,7 @@ footer {
   flex-wrap: wrap;
 }
 
-.share-btn {
-  display: inline-block;
-  padding: 0.625rem 1.5rem;
-  background: transparent;
-  color: var(--foreground);
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  font-family: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s;
-}
-.share-btn:hover:not(:disabled) {
-  background: var(--accent);
-}
-.share-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-.share-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
-}
+/* share-btn styles merged with download-btn above */
 
 /* --- Bottom Sheet (mobile) --- */
 .bottom-sheet-overlay {

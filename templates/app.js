@@ -393,7 +393,7 @@
         inp.value = v;
         if (v === 'all') inp.checked = true;
         const span = document.createElement('span');
-        span.textContent = v === 'all' ? 'Both' : `Subgroup ${v}`;
+        span.textContent = v === 'all' ? 'Both' : `/${v}`;
         lbl.appendChild(inp);
         lbl.appendChild(span);
         pills.appendChild(lbl);
@@ -770,8 +770,8 @@
       grid.appendChild(hdr);
     });
 
-    // Hour rows
-    for (let h = GRID_START; h < GRID_END; h++) {
+    // Hour rows (include GRID_END for the final label + line)
+    for (let h = GRID_START; h <= GRID_END; h++) {
       const rowIdx = (h - GRID_START) * 2 + 2;
 
       const label = document.createElement('div');
@@ -787,11 +787,14 @@
       line.style.gridColumn = `2 / ${numDays + 2}`;
       grid.appendChild(line);
 
-      const halfLine = document.createElement('div');
-      halfLine.className = 'grid-line-half';
-      halfLine.style.gridRow = String(rowIdx + 1);
-      halfLine.style.gridColumn = `2 / ${numDays + 2}`;
-      grid.appendChild(halfLine);
+      // No half-hour line for the last hour
+      if (h < GRID_END) {
+        const halfLine = document.createElement('div');
+        halfLine.className = 'grid-line-half';
+        halfLine.style.gridRow = String(rowIdx + 1);
+        halfLine.style.gridColumn = `2 / ${numDays + 2}`;
+        grid.appendChild(halfLine);
+      }
     }
 
     // Group entries by day
@@ -828,6 +831,13 @@
 
         const BADGE = { 'Curs': '[C]', 'Seminar': '[S]', 'Laborator': '[L]' };
 
+        // Determine subgroup suffix if "Both" is selected and event is subgroup-specific
+        let subgroupTag = '';
+        if (selectedSubgroup === 'all' && ev.formation && ev.formation.includes('/')) {
+          const sgPart = ev.formation.split('/')[1];
+          if (sgPart === '1' || sgPart === '2') subgroupTag = ` /${sgPart}`;
+        }
+
         const subjEl = document.createElement('div');
         subjEl.className = 'event-subject';
         subjEl.textContent = ev.subject;
@@ -835,10 +845,10 @@
 
         const metaEl = document.createElement('div');
         metaEl.className = 'event-meta';
-        metaEl.textContent = `${BADGE[ev.type] || ''} ${ev.room || ''}`;
+        metaEl.textContent = `${BADGE[ev.type] || ''}${subgroupTag} ${ev.room || ''}`;
         el.appendChild(metaEl);
 
-        el.title = `${ev.subject}\n${BADGE[ev.type] || ev.type} | ${ev.room || 'No room'}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00`;
+        el.title = `${ev.subject}\n${BADGE[ev.type] || ev.type}${subgroupTag} | ${ev.room || 'No room'}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00`;
 
         grid.appendChild(el);
       });
@@ -1032,7 +1042,7 @@
               inp.value = v;
               if (v === savedSub) inp.checked = true;
               const span = document.createElement('span');
-              span.textContent = v === 'all' ? 'Both' : `Subgroup ${v}`;
+              span.textContent = v === 'all' ? 'Both' : `/${v}`;
               lbl.appendChild(inp);
               lbl.appendChild(span);
               pills.appendChild(lbl);
