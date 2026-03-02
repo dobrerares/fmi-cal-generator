@@ -1075,6 +1075,9 @@ footer {
   transition: background-color 0.15s, border-color 0.3s;
 }
 .cal-accordion-header:hover { background: var(--accent); }
+.calendar-accordion:not(.collapsed) .cal-accordion-header {
+  border-radius: 0.5rem 0.5rem 0 0;
+}
 
 .cal-accordion-title {
   font-weight: 600;

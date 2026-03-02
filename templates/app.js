@@ -518,6 +518,9 @@
       cal.panel.parentNode.removeChild(cal.panel);
     }
 
+    // Clean up per-calendar tracking
+    delete comboboxHighlightIdx[calId];
+
     // Filter out from calendars array
     calendars = calendars.filter(function(c) { return c.id !== calId; });
 
