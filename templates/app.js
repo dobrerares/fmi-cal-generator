@@ -456,6 +456,15 @@
     if (cal && cal.panel) cal.panel.classList.add('collapsed');
   }
 
+  function collapseAllButFirst() {
+    if (calendars.length > 1) {
+      calendars.forEach(function(c, i) {
+        if (i === 0) expandAccordion(c.id);
+        else collapseAccordion(c.id);
+      });
+    }
+  }
+
   function toggleAccordion(calId) {
     var cal = getCal(calId);
     if (cal && cal.panel) {
@@ -1684,6 +1693,7 @@
       }
 
       if (!calStates.length) return;
+      calStates = calStates.slice(0, MAX_CALENDARS);
 
       restoring = true;
 
@@ -1707,13 +1717,7 @@
           pendingRestores--;
           if (pendingRestores === 0) {
             restoring = false;
-            // Collapse all but first accordion so UI isn't overwhelming
-            if (calendars.length > 1) {
-              calendars.forEach(function(c, i) {
-                if (i === 0) expandAccordion(c.id);
-                else collapseAccordion(c.id);
-              });
-            }
+            collapseAllButFirst();
             updatePreview();
             saveState(); // migrate v1 → v2 format
           }
@@ -1877,6 +1881,7 @@
   function restoreFromURL() {
     var decoded = decodeStateFromURL();
     if (!decoded || !decoded.calStates || !decoded.calStates.length || !indexData) return false;
+    decoded.calStates = decoded.calStates.slice(0, MAX_CALENDARS);
 
     // Validate that at least the first calendar has a valid spec
     var firstState = decoded.calStates[0];
@@ -1940,13 +1945,7 @@
         pendingUrlRestores--;
         if (pendingUrlRestores === 0) {
           restoring = false;
-          // Collapse all but first accordion so UI isn't overwhelming
-          if (calendars.length > 1) {
-            calendars.forEach(function(c, i) {
-              if (i === 0) expandAccordion(c.id);
-              else collapseAccordion(c.id);
-            });
-          }
+          collapseAllButFirst();
           updatePreview();
           saveState();
         }
