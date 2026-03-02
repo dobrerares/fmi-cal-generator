@@ -29,55 +29,8 @@
 
       <!-- Left: Controls Panel -->
       <div class="controls-panel" id="controls-panel">
-        <div class="card spec-card" id="spec-card">
-          <h3>Specialization</h3>
-          <div class="combobox spec-combobox" id="spec-combobox">
-            <input type="text" class="spec-input" id="spec-input" placeholder="Loading&hellip;" autocomplete="off" />
-            <ul class="combobox-list spec-list" id="spec-list"></ul>
-            <input type="hidden" class="spec-select" id="spec-select" value="" />
-          </div>
-        </div>
-
-        <div class="card disabled year-card" id="year-card">
-          <h3>Year</h3>
-          <div class="custom-select" id="year-dropdown">
-            <button class="custom-select-trigger year-trigger" id="year-trigger" type="button">Pick a specialization first</button>
-            <ul class="custom-select-list year-list" id="year-list"></ul>
-            <input type="hidden" class="year-select" id="year-select" value="" />
-          </div>
-        </div>
-
-        <div class="card disabled group-card" id="group-card">
-          <h3>Group</h3>
-          <div class="custom-select" id="group-dropdown">
-            <button class="custom-select-trigger group-trigger" id="group-trigger" type="button">Pick a year first</button>
-            <ul class="custom-select-list group-list" id="group-list"></ul>
-            <input type="hidden" class="group-select" id="group-select" value="" />
-          </div>
-        </div>
-
-        <div class="card disabled subgroup-card" id="subgroup-card">
-          <h3>Subgroup</h3>
-          <div class="pill-group subgroup-pills" id="subgroup-pills"></div>
-        </div>
-
-        <div class="card disabled types-card" id="types-card">
-          <h3>Event Types</h3>
-          <div class="pill-group">
-            <label><input type="checkbox" data-type="Curs" checked><span>Courses</span></label>
-            <label><input type="checkbox" data-type="Seminar" checked><span>Seminars</span></label>
-            <label><input type="checkbox" data-type="Laborator" checked><span>Labs</span></label>
-          </div>
-        </div>
-
-        <div class="card disabled subjects-card" id="subjects-card">
-          <div class="filter-header">
-            <h3>Subjects</h3>
-            <button class="toggle-subjects-btn" id="toggle-subjects-btn">Deselect all</button>
-          </div>
-          <input type="text" class="subject-search" id="subject-search" placeholder="Filter subjects&hellip;" autocomplete="off" aria-label="Filter subjects" />
-          <div class="check-group subject-list" id="subject-list"></div>
-        </div>
+        <div id="calendars-container"></div>
+        <button class="add-calendar-btn" id="add-calendar-btn">+ Add Calendar</button>
       </div>
 
       <!-- Right: Schedule Panel -->

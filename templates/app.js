@@ -47,6 +47,8 @@
       yearData: null,   // was global specData
       group: null,       // was global selectedGroup
       panel: null,
+      yearSelect: null,
+      groupSelect: null,
     };
   }
 
@@ -247,25 +249,26 @@
 
     calQ(calId, '.spec-select').value = specIndex;
 
-    yearSelect.reset('Select year\u2026');
-    yearSelect.setItems(spec.years.map(y => ({ value: y.code, text: `Year ${y.year}` })));
+    var calYearSelect = getCal(calId).yearSelect;
+    calYearSelect.reset('Select year\u2026');
+    calYearSelect.setItems(spec.years.map(y => ({ value: y.code, text: `Year ${y.year}` })));
     enableCard(calId, 'year-card');
 
     if (spec.years.length === 1) {
-      yearSelect.selectItem(spec.years[0].code, `Year ${spec.years[0].year}`);
+      calYearSelect.selectItem(spec.years[0].code, `Year ${spec.years[0].year}`);
     }
     saveState();
   }
 
   // --- Load index + combobox ---
   let comboboxItems = [];
-  let highlightedIdx = -1;
+  var comboboxHighlightIdx = {}; // per-calendar highlighted index for combobox
   const CAL0 = 0; // default calendar id
 
   function renderList(calId, filter) {
     const list = calQ(calId, '.spec-list');
     list.innerHTML = '';
-    highlightedIdx = -1;
+    comboboxHighlightIdx[calId] = -1;
     comboboxItems.forEach((item, i) => {
       if (filter && !fuzzyMatch(item.name, filter)) return;
       const li = document.createElement('li');
@@ -290,7 +293,7 @@
     if (!list.classList.contains('open')) return;
     list.classList.remove('open');
     list.classList.add('closing');
-    highlightedIdx = -1;
+    comboboxHighlightIdx[calId] = -1;
     list.querySelectorAll('li').forEach(li => li.classList.remove('highlighted'));
     list.addEventListener('animationend', function handler() {
       list.removeEventListener('animationend', handler);
@@ -305,14 +308,230 @@
     onSpecChange(calId, index);
   }
 
-  // --- Initialize calendar 0 panel and controls ---
-  calendars[0].panel = document.getElementById('controls-panel');
-  yearSelect = setupYearSelect(CAL0);
-  groupSelect = setupGroupSelect(CAL0);
-  setupCombobox(CAL0);
-  setupTypeToggles(CAL0);
-  setupToggleSubjectsBtn(CAL0);
-  setupSubjectSearch(CAL0);
+  // --- Dynamic panel creation ---
+  function createCalendarPanel(calId) {
+    var cal = getCal(calId);
+    var displayNum = calId + 1;
+
+    // Outer wrapper
+    var wrapper = document.createElement('div');
+    wrapper.className = 'calendar-accordion';
+    wrapper.dataset.calId = String(calId);
+
+    // Accordion header
+    var header = document.createElement('div');
+    header.className = 'cal-accordion-header';
+
+    var title = document.createElement('span');
+    title.className = 'cal-accordion-title';
+    title.textContent = 'Calendar ' + displayNum;
+
+    var summary = document.createElement('span');
+    summary.className = 'cal-accordion-summary';
+    summary.textContent = '';
+
+    var chevron = document.createElement('span');
+    chevron.className = 'cal-accordion-chevron';
+    chevron.innerHTML = '&#x25BC;';
+
+    header.appendChild(title);
+    header.appendChild(summary);
+    header.appendChild(chevron);
+
+    // Remove button (hidden for calId 0)
+    if (calId !== 0) {
+      var removeBtn = document.createElement('button');
+      removeBtn.className = 'cal-remove-btn';
+      removeBtn.type = 'button';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.title = 'Remove calendar';
+      removeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        removeCalendar(calId);
+      });
+      header.appendChild(removeBtn);
+    }
+
+    header.addEventListener('click', function() { toggleAccordion(calId); });
+
+    wrapper.appendChild(header);
+
+    // Accordion body
+    var body = document.createElement('div');
+    body.className = 'cal-accordion-body';
+
+    // 1. Spec card
+    var specCard = document.createElement('div');
+    specCard.className = 'card spec-card';
+    specCard.innerHTML =
+      '<h3>Specialization</h3>' +
+      '<div class="combobox spec-combobox">' +
+        '<input type="text" class="spec-input" placeholder="Loading&hellip;" autocomplete="off" />' +
+        '<ul class="combobox-list spec-list"></ul>' +
+        '<input type="hidden" class="spec-select" value="" />' +
+      '</div>';
+    body.appendChild(specCard);
+
+    // 2. Year card
+    var yearCard = document.createElement('div');
+    yearCard.className = 'card disabled year-card';
+    yearCard.innerHTML =
+      '<h3>Year</h3>' +
+      '<div class="custom-select">' +
+        '<button class="custom-select-trigger year-trigger" type="button">Pick a specialization first</button>' +
+        '<ul class="custom-select-list year-list"></ul>' +
+        '<input type="hidden" class="year-select" value="" />' +
+      '</div>';
+    body.appendChild(yearCard);
+
+    // 3. Group card
+    var groupCard = document.createElement('div');
+    groupCard.className = 'card disabled group-card';
+    groupCard.innerHTML =
+      '<h3>Group</h3>' +
+      '<div class="custom-select">' +
+        '<button class="custom-select-trigger group-trigger" type="button">Pick a year first</button>' +
+        '<ul class="custom-select-list group-list"></ul>' +
+        '<input type="hidden" class="group-select" value="" />' +
+      '</div>';
+    body.appendChild(groupCard);
+
+    // 4. Subgroup card
+    var subgroupCard = document.createElement('div');
+    subgroupCard.className = 'card disabled subgroup-card';
+    subgroupCard.innerHTML =
+      '<h3>Subgroup</h3>' +
+      '<div class="pill-group subgroup-pills"></div>';
+    body.appendChild(subgroupCard);
+
+    // 5. Types card
+    var typesCard = document.createElement('div');
+    typesCard.className = 'card disabled types-card';
+    typesCard.innerHTML =
+      '<h3>Event Types</h3>' +
+      '<div class="pill-group">' +
+        '<label><input type="checkbox" data-type="Curs" checked><span>Courses</span></label>' +
+        '<label><input type="checkbox" data-type="Seminar" checked><span>Seminars</span></label>' +
+        '<label><input type="checkbox" data-type="Laborator" checked><span>Labs</span></label>' +
+      '</div>';
+    body.appendChild(typesCard);
+
+    // 6. Subjects card
+    var subjectsCard = document.createElement('div');
+    subjectsCard.className = 'card disabled subjects-card';
+    subjectsCard.innerHTML =
+      '<div class="filter-header">' +
+        '<h3>Subjects</h3>' +
+        '<button class="toggle-subjects-btn">Deselect all</button>' +
+      '</div>' +
+      '<input type="text" class="subject-search" placeholder="Filter subjects&hellip;" autocomplete="off" aria-label="Filter subjects" />' +
+      '<div class="check-group subject-list"></div>';
+    body.appendChild(subjectsCard);
+
+    wrapper.appendChild(body);
+
+    // Store panel reference
+    cal.panel = wrapper;
+
+    // Wire up all controls scoped to this panel
+    cal.yearSelect = setupYearSelect(calId);
+    cal.groupSelect = setupGroupSelect(calId);
+    setupCombobox(calId);
+    setupTypeToggles(calId);
+    setupToggleSubjectsBtn(calId);
+    setupSubjectSearch(calId);
+
+    return wrapper;
+  }
+
+  // --- Accordion functions ---
+  function expandAccordion(calId) {
+    var cal = getCal(calId);
+    if (cal && cal.panel) cal.panel.classList.remove('collapsed');
+  }
+
+  function collapseAccordion(calId) {
+    var cal = getCal(calId);
+    if (cal && cal.panel) cal.panel.classList.add('collapsed');
+  }
+
+  function toggleAccordion(calId) {
+    var cal = getCal(calId);
+    if (cal && cal.panel) {
+      cal.panel.classList.toggle('collapsed');
+    }
+  }
+
+  function updateAccordionSummary(calId) {
+    var cal = getCal(calId);
+    if (!cal || !cal.panel) return;
+    var summaryEl = cal.panel.querySelector('.cal-accordion-summary');
+    if (!summaryEl) return;
+
+    var parts = [];
+    var specIdx = calQ(calId, '.spec-select').value;
+    if (specIdx !== '' && indexData && indexData.specs[specIdx]) {
+      var specName = indexData.specs[specIdx].name;
+      parts.push(specName.length > 16 ? specName.substring(0, 16) + '\u2026' : specName);
+    }
+    var yearCode = calQ(calId, '.year-select').value;
+    if (yearCode) parts.push(yearCode);
+    if (cal.group) parts.push('G' + cal.group.name);
+    if (cal.subgroup !== 'all') parts.push('/' + cal.subgroup);
+
+    summaryEl.textContent = parts.length ? parts.join(' \u203A ') : '';
+  }
+
+  // --- Add calendar handler ---
+  function addCalendar() {
+    var newId = nextCalId++;
+    var newCal = createCalendarState(newId);
+    calendars.push(newCal);
+
+    var container = document.getElementById('calendars-container');
+    var panel = createCalendarPanel(newId);
+    container.appendChild(panel);
+
+    // Collapse all others, expand new one
+    calendars.forEach(function(c) {
+      if (c.id !== newId) collapseAccordion(c.id);
+    });
+    expandAccordion(newId);
+
+    // Populate spec list from indexData
+    if (indexData) {
+      renderList(newId, '');
+      calQ(newId, '.spec-input').placeholder = 'Select specialization\u2026';
+    }
+
+    saveState();
+  }
+
+  // --- Remove calendar handler ---
+  function removeCalendar(calId) {
+    if (calId === 0) return; // Cannot remove primary
+    var cal = getCal(calId);
+    if (!cal) return;
+
+    // Remove panel from DOM
+    if (cal.panel && cal.panel.parentNode) {
+      cal.panel.parentNode.removeChild(cal.panel);
+    }
+
+    // Filter out from calendars array
+    calendars = calendars.filter(function(c) { return c.id !== calId; });
+
+    updatePreview();
+    saveState();
+  }
+
+  // --- Initialize calendar 0 panel ---
+  var container = document.getElementById('calendars-container');
+  var cal0Panel = createCalendarPanel(CAL0);
+  container.appendChild(cal0Panel);
+
+  // Add Calendar button handler
+  document.getElementById('add-calendar-btn').addEventListener('click', addCalendar);
 
   fetch('data/index.json')
     .then(r => r.json())
@@ -372,18 +591,21 @@
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        highlightedIdx = Math.min(highlightedIdx + 1, items.length - 1);
-        items.forEach((li, i) => li.classList.toggle('highlighted', i === highlightedIdx));
-        items[highlightedIdx].scrollIntoView({ block: 'nearest' });
+        var cur = comboboxHighlightIdx[calId] != null ? comboboxHighlightIdx[calId] : -1;
+        comboboxHighlightIdx[calId] = Math.min(cur + 1, items.length - 1);
+        items.forEach((li, i) => li.classList.toggle('highlighted', i === comboboxHighlightIdx[calId]));
+        items[comboboxHighlightIdx[calId]].scrollIntoView({ block: 'nearest' });
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        highlightedIdx = Math.max(highlightedIdx - 1, -1);
-        items.forEach((li, i) => li.classList.toggle('highlighted', i === highlightedIdx));
-        if (highlightedIdx >= 0) items[highlightedIdx].scrollIntoView({ block: 'nearest' });
+        var cur2 = comboboxHighlightIdx[calId] != null ? comboboxHighlightIdx[calId] : -1;
+        comboboxHighlightIdx[calId] = Math.max(cur2 - 1, -1);
+        items.forEach((li, i) => li.classList.toggle('highlighted', i === comboboxHighlightIdx[calId]));
+        if (comboboxHighlightIdx[calId] >= 0) items[comboboxHighlightIdx[calId]].scrollIntoView({ block: 'nearest' });
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (highlightedIdx >= 0 && highlightedIdx < items.length) {
-          const li = items[highlightedIdx];
+        var hlIdx = comboboxHighlightIdx[calId] != null ? comboboxHighlightIdx[calId] : -1;
+        if (hlIdx >= 0 && hlIdx < items.length) {
+          const li = items[hlIdx];
           selectSpec(calId, Number(li.dataset.index), li.textContent);
         }
       } else if (e.key === 'Escape') {
@@ -394,7 +616,6 @@
   }
 
   // --- Year custom select (fetch spec JSON on change) ---
-  var yearSelect, groupSelect; // forward declarations for cross-references
   function setupYearSelect(calId) {
     return setupCustomSelect(
       calQ(calId, '.year-trigger'), calQ(calId, '.year-list'), calQ(calId, '.year-select'),
@@ -403,15 +624,15 @@
         resetFrom(calId, 'group-card');
         if (!code) return;
 
-        groupSelect.reset('Loading\u2026');
+        cal.groupSelect.reset('Loading\u2026');
         enableCard(calId, 'group-card');
 
         fetch(`data/${code}.json`)
           .then(r => r.json())
           .then(data => {
             cal.yearData = data;
-            groupSelect.reset('Select group\u2026');
-            groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
+            cal.groupSelect.reset('Select group\u2026');
+            cal.groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
             if (window._urlState) {
               const us = window._urlState;
 
@@ -436,7 +657,7 @@
               if (us.groupIndex !== null && us.groupIndex !== undefined) {
                 const gi = Number(us.groupIndex);
                 if (data.groups[gi]) {
-                  groupSelect.selectItem(gi, `Group ${data.groups[gi].name}`);
+                  cal.groupSelect.selectItem(gi, `Group ${data.groups[gi].name}`);
                 }
               }
 
@@ -467,7 +688,7 @@
             saveState();
           })
           .catch(() => {
-            groupSelect.reset('Failed to load');
+            cal.groupSelect.reset('Failed to load');
           });
       }
     );
@@ -494,7 +715,7 @@
             const lbl = document.createElement('label');
             const inp = document.createElement('input');
             inp.type = 'radio';
-            inp.name = 'subgroup';
+            inp.name = 'subgroup-' + calId;
             inp.value = v;
             if (v === 'all') inp.checked = true;
             const span = document.createElement('span');
@@ -519,6 +740,7 @@
         enableCard(calId, 'subjects-card');
         updateSubjects(calId);
         updatePreview();
+        updateAccordionSummary(calId);
       }
     );
   }
@@ -1167,9 +1389,10 @@
       overlay.classList.add('visible');
       const panel = $('#controls-panel');
       if (panel && content.children.length === 0) {
-        Array.from(panel.children).forEach(card => {
-          content.appendChild(card);
-        });
+        var calContainer = document.getElementById('calendars-container');
+        var addBtn = document.getElementById('add-calendar-btn');
+        if (calContainer) content.appendChild(calContainer);
+        if (addBtn) content.appendChild(addBtn);
       }
     }
 
@@ -1177,15 +1400,16 @@
       sheet.classList.remove('expanded');
       overlay.classList.remove('visible');
       updatePeekText();
-      // Move cards back after slide-out animation finishes
+      // Move elements back after slide-out animation finishes
       function onDone() {
         sheet.removeEventListener('transitionend', onDone);
         if (sheet.classList.contains('expanded')) return; // re-expanded during animation
         const panel = $('#controls-panel');
         if (panel && content.children.length > 0) {
-          Array.from(content.children).forEach(card => {
-            panel.appendChild(card);
-          });
+          var calContainer = content.querySelector('#calendars-container');
+          var addBtn = content.querySelector('#add-calendar-btn');
+          if (calContainer) panel.appendChild(calContainer);
+          if (addBtn) panel.appendChild(addBtn);
         }
       }
       sheet.addEventListener('transitionend', onDone);
@@ -1244,6 +1468,8 @@
       state.labSubgroupOverrides = cal.labSubgroupOverrides;
       localStorage.setItem('fmi-cal-state', JSON.stringify(state));
       if (window._updateBottomSheetPeek) window._updateBottomSheetPeek();
+      // Update accordion summaries for all calendars
+      calendars.forEach(function(c) { updateAccordionSummary(c.id); });
     } catch (e) {}
   }
 
@@ -1263,7 +1489,7 @@
       calQ(CAL0, '.spec-input').value = spec.name;
 
       // Populate year options (same as onSpecChange)
-      yearSelect.setItems(spec.years.map(y => ({ value: y.code, text: `Year ${y.year}` })));
+      cal.yearSelect.setItems(spec.years.map(y => ({ value: y.code, text: `Year ${y.year}` })));
       enableCard(CAL0, 'year-card');
 
       // Validate yearCode
@@ -1271,7 +1497,7 @@
         restoring = false;
         return;
       }
-      yearSelect.setValue(state.yearCode);
+      cal.yearSelect.setValue(state.yearCode);
 
       // Fetch year data
       fetch(`data/${state.yearCode}.json`)
@@ -1280,7 +1506,7 @@
           cal.yearData = data;
 
           // Populate group options
-          groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
+          cal.groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
           enableCard(CAL0, 'group-card');
 
           // Validate groupIndex
@@ -1289,7 +1515,7 @@
             restoring = false;
             return;
           }
-          groupSelect.setValue(gi);
+          cal.groupSelect.setValue(gi);
           cal.group = data.groups[gi];
 
           // Build subgroup pills (same as group-change handler)
@@ -1302,7 +1528,7 @@
               const lbl = document.createElement('label');
               const inp = document.createElement('input');
               inp.type = 'radio';
-              inp.name = 'subgroup';
+              inp.name = 'subgroup-' + CAL0;
               inp.value = v;
               if (v === savedSub) inp.checked = true;
               const span = document.createElement('span');
@@ -1495,7 +1721,7 @@
     if (spec.years.length > 1) {
       const yearMatch = spec.years.find(y => y.code === state.yearCode);
       if (yearMatch) {
-        yearSelect.selectItem(yearMatch.code, `Year ${yearMatch.year}`);
+        getCal(CAL0).yearSelect.selectItem(yearMatch.code, `Year ${yearMatch.year}`);
       }
     }
 
