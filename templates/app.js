@@ -678,14 +678,23 @@
                     if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
                   });
                 }
-                updatePreview();
+                if (!restoring) updatePreview();
+                var doneFn = cal._urlRestoreDone;
                 delete cal._urlState;
+                delete cal._urlRestoreDone;
+                if (doneFn) doneFn();
               }, 100);
             }
             saveState();
           })
           .catch(() => {
             cal.groupSelect.reset('Failed to load');
+            if (cal._urlRestoreDone) {
+              var doneFn = cal._urlRestoreDone;
+              delete cal._urlState;
+              delete cal._urlRestoreDone;
+              doneFn();
+            }
           });
       }
     );
@@ -1840,6 +1849,8 @@
     }
     if (firstSpecIndex === null) return false;
 
+    restoring = true;
+
     // Apply global frequency
     if (decoded.freq && decoded.freq !== 'all') {
       selectedFreq = decoded.freq;
@@ -1851,6 +1862,9 @@
     for (var ci = 1; ci < decoded.calStates.length; ci++) {
       addCalendar();
     }
+
+    // Track pending async URL restores
+    var pendingUrlRestores = decoded.calStates.length;
 
     // Restore each calendar via the cascade mechanism
     decoded.calStates.forEach(function(calState, idx) {
@@ -1865,10 +1879,22 @@
           break;
         }
       }
-      if (specIndex === null) return;
+      if (specIndex === null) {
+        pendingUrlRestores--;
+        if (pendingUrlRestores === 0) { restoring = false; saveState(); }
+        return;
+      }
 
       // Set per-calendar _urlState (used by setupYearSelect cascade)
       cal._urlState = calState;
+      cal._urlRestoreDone = function() {
+        pendingUrlRestores--;
+        if (pendingUrlRestores === 0) {
+          restoring = false;
+          updatePreview();
+          saveState();
+        }
+      };
 
       selectSpec(calId, specIndex, indexData.specs[specIndex].name);
 
