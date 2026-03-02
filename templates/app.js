@@ -636,20 +636,14 @@
             cal.yearData = data;
             cal.groupSelect.reset('Select group\u2026');
             cal.groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
-            if (window._urlState) {
-              const us = window._urlState;
+            if (cal._urlState) {
+              var us = cal._urlState;
 
               // Apply unchecked types before group selection triggers updateSubjects
               if (us.uncheckedTypes && us.uncheckedTypes.length) {
-                calQAll(calId, '.types-card input[type="checkbox"]').forEach(cb => {
+                calQAll(calId, '.types-card input[type="checkbox"]').forEach(function(cb) {
                   if (us.uncheckedTypes.includes(cb.dataset.type)) cb.checked = false;
                 });
-              }
-
-              if (us.freq && us.freq !== 'all') {
-                selectedFreq = us.freq;
-                const freqRadio = $(`#freq-toggle input[value="${us.freq}"]`);
-                if (freqRadio) freqRadio.checked = true;
               }
 
               // Apply labSubgroupOverrides before group selection
@@ -658,34 +652,34 @@
               }
 
               if (us.groupIndex !== null && us.groupIndex !== undefined) {
-                const gi = Number(us.groupIndex);
+                var gi = Number(us.groupIndex);
                 if (data.groups[gi]) {
-                  cal.groupSelect.selectItem(gi, `Group ${data.groups[gi].name}`);
+                  cal.groupSelect.selectItem(gi, 'Group ' + data.groups[gi].name);
                 }
               }
 
               // Apply subgroup + excluded after group cascade completes
-              setTimeout(() => {
+              setTimeout(function() {
                 if (us.subgroup && us.subgroup !== 'all' && cal.group && cal.group.hasSubgroups) {
-                  const subRadio = calQ(calId, '.subgroup-pills input[value="' + us.subgroup + '"]');
+                  var subRadio = calQ(calId, '.subgroup-pills input[value="' + us.subgroup + '"]');
                   if (subRadio) {
                     subRadio.checked = true;
                     cal.subgroup = us.subgroup;
                   }
                 }
                 if (us.excluded && us.excluded.length) {
-                  const excSet = new Set(us.excluded);
-                  calQAll(calId, '.subject-list input[data-key]').forEach(cb => {
+                  var excSet = new Set(us.excluded);
+                  calQAll(calId, '.subject-list input[data-key]').forEach(function(cb) {
                     if (excSet.has(cb.dataset.key)) cb.checked = false;
                   });
-                  calQAll(calId, '.subject-list .subject-group').forEach(g => {
-                    const parentCb = g.querySelector('.subject-parent input');
-                    const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
+                  calQAll(calId, '.subject-list .subject-group').forEach(function(g) {
+                    var parentCb = g.querySelector('.subject-parent input');
+                    var childCbs = Array.prototype.slice.call(g.querySelectorAll('.subject-children input[data-key]'));
                     if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
                   });
                 }
                 updatePreview();
-                delete window._urlState;
+                delete cal._urlState;
               }, 100);
             }
             saveState();
@@ -1495,175 +1489,214 @@
   initBottomSheet();
 
   // --- Persistence ---
+  function syncCalStateFromDOM(calId) {
+    var cal = getCal(calId);
+    var state = {};
+    state.specIndex = calQ(calId, '.spec-select').value;
+    state.yearCode = calQ(calId, '.year-select').value;
+    state.groupIndex = calQ(calId, '.group-select').value;
+    state.subgroup = cal.subgroup;
+    state.uncheckedTypes = [];
+    calQAll(calId, '.types-card input[type="checkbox"]').forEach(function(cb) {
+      if (!cb.checked) state.uncheckedTypes.push(cb.dataset.type);
+    });
+    state.excludedKeys = [];
+    calQAll(calId, '.subject-list input[data-key]').forEach(function(cb) {
+      if (!cb.checked) state.excludedKeys.push(cb.dataset.key);
+    });
+    state.labSubgroupOverrides = cal.labSubgroupOverrides;
+    return state;
+  }
+
   function saveState() {
     if (restoring) return;
     try {
-      var cal = getCal(CAL0);
-      const state = {};
-      state.specIndex = calQ(CAL0, '.spec-select').value;
-      state.yearCode = calQ(CAL0, '.year-select').value;
-      state.groupIndex = calQ(CAL0, '.group-select').value;
-      state.subgroup = cal.subgroup;
-      state.uncheckedTypes = [];
-      calQAll(CAL0, '.types-card input[type="checkbox"]').forEach(cb => {
-        if (!cb.checked) state.uncheckedTypes.push(cb.dataset.type);
+      var calStates = calendars.map(function(cal) {
+        return syncCalStateFromDOM(cal.id);
       });
-      state.excludedKeys = [];
-      calQAll(CAL0, '.subject-list input[data-key]').forEach(cb => {
-        if (!cb.checked) state.excludedKeys.push(cb.dataset.key);
-      });
-      state.labSubgroupOverrides = cal.labSubgroupOverrides;
-      localStorage.setItem('fmi-cal-state', JSON.stringify(state));
+      var payload = { v: 2, calendars: calStates };
+      localStorage.setItem('fmi-cal-state', JSON.stringify(payload));
       if (window._updateBottomSheetPeek) window._updateBottomSheetPeek();
-      // Update accordion summaries for all calendars
       calendars.forEach(function(c) { updateAccordionSummary(c.id); });
     } catch (e) {}
   }
 
+  function restoreCalendar(calId, state, onDone) {
+    if (!state || state.specIndex === '' || state.specIndex == null) {
+      if (onDone) onDone();
+      return;
+    }
+    if (!indexData.specs[state.specIndex]) {
+      if (onDone) onDone();
+      return;
+    }
+
+    var cal = getCal(calId);
+    var spec = indexData.specs[state.specIndex];
+    calQ(calId, '.spec-select').value = state.specIndex;
+    calQ(calId, '.spec-input').value = spec.name;
+
+    // Populate year options (same as onSpecChange)
+    cal.yearSelect.setItems(spec.years.map(function(y) { return { value: y.code, text: 'Year ' + y.year }; }));
+    enableCard(calId, 'year-card');
+
+    // Validate yearCode
+    if (!state.yearCode || !spec.years.some(function(y) { return y.code === state.yearCode; })) {
+      if (onDone) onDone();
+      return;
+    }
+    cal.yearSelect.setValue(state.yearCode);
+
+    // Fetch year data
+    fetch('data/' + state.yearCode + '.json')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        cal.yearData = data;
+
+        // Populate group options
+        cal.groupSelect.setItems(data.groups.map(function(g, i) { return { value: i, text: 'Group ' + g.name }; }));
+        enableCard(calId, 'group-card');
+
+        // Validate groupIndex
+        var gi = state.groupIndex;
+        if (gi === '' || gi === null || gi === undefined || !data.groups[gi]) {
+          if (onDone) onDone();
+          return;
+        }
+        cal.groupSelect.setValue(gi);
+        cal.group = data.groups[gi];
+
+        // Build subgroup pills (same as group-change handler)
+        var group = cal.group;
+        var pills = calQ(calId, '.subgroup-pills');
+        pills.innerHTML = '';
+        if (group.hasSubgroups) {
+          var savedSub = (state.subgroup === '1' || state.subgroup === '2') ? state.subgroup : 'all';
+          ['1','2','all'].forEach(function(v) {
+            var lbl = document.createElement('label');
+            var inp = document.createElement('input');
+            inp.type = 'radio';
+            inp.name = 'subgroup-' + calId;
+            inp.value = v;
+            if (v === savedSub) inp.checked = true;
+            var span = document.createElement('span');
+            span.textContent = v === 'all' ? 'Both' : '/' + v;
+            lbl.appendChild(inp);
+            lbl.appendChild(span);
+            pills.appendChild(lbl);
+            inp.addEventListener('change', function() {
+              cal.subgroup = v;
+              cal.labSubgroupOverrides = {};
+              updateSubjects(calId);
+              updatePreview();
+            });
+          });
+          cal.subgroup = savedSub;
+          if (state.labSubgroupOverrides) {
+            cal.labSubgroupOverrides = state.labSubgroupOverrides;
+          }
+          enableCard(calId, 'subgroup-card');
+        } else {
+          cal.subgroup = 'all';
+        }
+
+        // Restore unchecked types
+        if (state.uncheckedTypes && state.uncheckedTypes.length) {
+          calQAll(calId, '.types-card input[type="checkbox"]').forEach(function(cb) {
+            if (state.uncheckedTypes.includes(cb.dataset.type)) cb.checked = false;
+          });
+        }
+
+        enableCard(calId, 'types-card');
+        enableCard(calId, 'subjects-card');
+
+        updateSubjects(calId);
+
+        // Apply excludedKeys (uncheck matching inputs)
+        if (state.excludedKeys && state.excludedKeys.length) {
+          var excSet = new Set(state.excludedKeys);
+          calQAll(calId, '.subject-list input[data-key]').forEach(function(cb) {
+            if (excSet.has(cb.dataset.key)) cb.checked = false;
+          });
+          // Sync all parent checkboxes
+          calQAll(calId, '.subject-list .subject-group').forEach(function(g) {
+            var parentCb = g.querySelector('.subject-parent input');
+            var childCbs = Array.prototype.slice.call(g.querySelectorAll('.subject-children input[data-key]'));
+            if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
+          });
+        }
+
+        if (onDone) onDone();
+      })
+      .catch(function() {
+        if (onDone) onDone();
+      });
+  }
+
   function restoreState() {
     try {
-      const raw = localStorage.getItem('fmi-cal-state');
+      var raw = localStorage.getItem('fmi-cal-state');
       if (!raw) return;
-      const state = JSON.parse(raw);
-      if (!state || state.specIndex === '' || state.specIndex == null) return;
-      if (!indexData.specs[state.specIndex]) return;
+      var saved = JSON.parse(raw);
+      if (!saved) return;
+
+      // Detect v1 (flat object) vs v2 (has .calendars array)
+      var calStates;
+      if (saved.v === 2 && Array.isArray(saved.calendars)) {
+        calStates = saved.calendars;
+      } else {
+        // v1: flat object, wrap in single-element array
+        calStates = [saved];
+      }
+
+      if (!calStates.length) return;
 
       restoring = true;
-      var cal = getCal(CAL0);
 
-      const spec = indexData.specs[state.specIndex];
-      calQ(CAL0, '.spec-select').value = state.specIndex;
-      calQ(CAL0, '.spec-input').value = spec.name;
-
-      // Populate year options (same as onSpecChange)
-      cal.yearSelect.setItems(spec.years.map(y => ({ value: y.code, text: `Year ${y.year}` })));
-      enableCard(CAL0, 'year-card');
-
-      // Validate yearCode
-      if (!state.yearCode || !spec.years.some(y => y.code === state.yearCode)) {
-        restoring = false;
-        return;
+      // Create additional calendar panels for indices beyond 0
+      for (var i = 1; i < calStates.length; i++) {
+        addCalendar();
       }
-      cal.yearSelect.setValue(state.yearCode);
 
-      // Fetch year data
-      fetch(`data/${state.yearCode}.json`)
-        .then(r => r.json())
-        .then(data => {
-          cal.yearData = data;
-
-          // Populate group options
-          cal.groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
-          enableCard(CAL0, 'group-card');
-
-          // Validate groupIndex
-          const gi = state.groupIndex;
-          if (gi === '' || gi === null || gi === undefined || !data.groups[gi]) {
+      // Restore each calendar with async counter
+      var pendingRestores = calStates.length;
+      calStates.forEach(function(state, idx) {
+        var calId = calendars[idx].id;
+        restoreCalendar(calId, state, function() {
+          pendingRestores--;
+          if (pendingRestores === 0) {
             restoring = false;
-            return;
+            updatePreview();
           }
-          cal.groupSelect.setValue(gi);
-          cal.group = data.groups[gi];
-
-          // Build subgroup pills (same as group-change handler)
-          const group = cal.group;
-          const pills = calQ(CAL0, '.subgroup-pills');
-          pills.innerHTML = '';
-          if (group.hasSubgroups) {
-            const savedSub = (state.subgroup === '1' || state.subgroup === '2') ? state.subgroup : 'all';
-            ['1','2','all'].forEach(v => {
-              const lbl = document.createElement('label');
-              const inp = document.createElement('input');
-              inp.type = 'radio';
-              inp.name = 'subgroup-' + CAL0;
-              inp.value = v;
-              if (v === savedSub) inp.checked = true;
-              const span = document.createElement('span');
-              span.textContent = v === 'all' ? 'Both' : `/${v}`;
-              lbl.appendChild(inp);
-              lbl.appendChild(span);
-              pills.appendChild(lbl);
-              inp.addEventListener('change', () => {
-                cal.subgroup = v;
-                cal.labSubgroupOverrides = {};
-                updateSubjects(CAL0);
-                updatePreview();
-              });
-            });
-            cal.subgroup = savedSub;
-            if (state.labSubgroupOverrides) {
-              cal.labSubgroupOverrides = state.labSubgroupOverrides;
-            }
-            enableCard(CAL0, 'subgroup-card');
-          } else {
-            cal.subgroup = 'all';
-          }
-
-          // Restore unchecked types
-          if (state.uncheckedTypes && state.uncheckedTypes.length) {
-            calQAll(CAL0, '.types-card input[type="checkbox"]').forEach(cb => {
-              if (state.uncheckedTypes.includes(cb.dataset.type)) cb.checked = false;
-            });
-          }
-
-          enableCard(CAL0, 'types-card');
-          enableCard(CAL0, 'subjects-card');
-
-          updateSubjects(CAL0);
-
-          // Apply excludedKeys (uncheck matching inputs)
-          if (state.excludedKeys && state.excludedKeys.length) {
-            const excSet = new Set(state.excludedKeys);
-            calQAll(CAL0, '.subject-list input[data-key]').forEach(cb => {
-              if (excSet.has(cb.dataset.key)) cb.checked = false;
-            });
-            // Sync all parent checkboxes
-            calQAll(CAL0, '.subject-list .subject-group').forEach(g => {
-              const parentCb = g.querySelector('.subject-parent input');
-              const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
-              if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
-            });
-          }
-
-          updatePreview();
-          restoring = false;
-        })
-        .catch(() => {
-          restoring = false;
         });
+      });
     } catch (e) {
       restoring = false;
     }
   }
 
   // --- Shareable URLs (base64-encoded JSON) ---
-  function encodeStateToURL() {
-    var cal = getCal(CAL0);
-    const specIdx = calQ(CAL0, '.spec-select').value;
-    if (specIdx === '' || specIdx == null) return;
+  function encodeCalStateForURL(calId) {
+    var cal = getCal(calId);
+    var yearCode = calQ(calId, '.year-select').value;
+    if (!yearCode) return null;
 
-    const yearCode = calQ(CAL0, '.year-select').value;
-    if (!yearCode) return;
+    var groupIdx = calQ(calId, '.group-select').value;
+    if (groupIdx === '' || groupIdx == null) return null;
 
-    const state = { s: yearCode }; // s = spec (yearCode)
-
-    const groupIdx = calQ(CAL0, '.group-select').value;
-    if (groupIdx !== '' && groupIdx != null) {
-      state.g = Number(groupIdx); // g = group index
-      if (cal.subgroup !== 'all') state.sg = cal.subgroup;
-    }
-    if (selectedFreq !== 'all') state.f = selectedFreq; // f = frequency
+    var state = { s: yearCode, g: Number(groupIdx) };
+    if (cal.subgroup !== 'all') state.sg = cal.subgroup;
 
     // Unchecked types
-    const uncheckedTypes = [];
-    calQAll(CAL0, '.types-card input[type="checkbox"]').forEach(cb => {
+    var uncheckedTypes = [];
+    calQAll(calId, '.types-card input[type="checkbox"]').forEach(function(cb) {
       if (!cb.checked) uncheckedTypes.push(cb.dataset.type);
     });
     if (uncheckedTypes.length) state.ut = uncheckedTypes;
 
-    // Excluded subjects (use short keys: strip the type suffix for compactness)
-    const excluded = [];
-    calQAll(CAL0, '.subject-list input[data-key]').forEach(cb => {
+    // Excluded subjects
+    var excluded = [];
+    calQAll(calId, '.subject-list input[data-key]').forEach(function(cb) {
       if (!cb.checked) excluded.push(cb.dataset.key);
     });
     if (excluded.length) state.ex = excluded;
@@ -1671,41 +1704,87 @@
     // Lab subgroup overrides
     if (Object.keys(cal.labSubgroupOverrides).length) state.lo = cal.labSubgroupOverrides;
 
-    const json = JSON.stringify(state);
-    const b64 = btoa(unescape(encodeURIComponent(json)));
-    return `${window.location.origin}${window.location.pathname}?c=${b64}`;
+    return state;
+  }
+
+  function encodeStateToURL() {
+    // Collect states for all calendars that have a group selected
+    var calStates = [];
+    calendars.forEach(function(c) {
+      var s = encodeCalStateForURL(c.id);
+      if (s) calStates.push(s);
+    });
+
+    if (!calStates.length) return;
+
+    var payload;
+    if (calStates.length === 1) {
+      // Single calendar: flat format for backward compatibility
+      payload = calStates[0];
+      if (selectedFreq !== 'all') payload.f = selectedFreq;
+    } else {
+      // Multi-calendar: { cals: [...], f: freq }
+      payload = { cals: calStates };
+      if (selectedFreq !== 'all') payload.f = selectedFreq;
+    }
+
+    var json = JSON.stringify(payload);
+    var b64 = btoa(unescape(encodeURIComponent(json)));
+    return window.location.origin + window.location.pathname + '?c=' + b64;
+  }
+
+  function decodeCalState(obj) {
+    return {
+      yearCode: obj.s,
+      groupIndex: obj.g !== undefined ? String(obj.g) : null,
+      subgroup: obj.sg || 'all',
+      uncheckedTypes: obj.ut || [],
+      excluded: obj.ex || [],
+      labSubgroupOverrides: obj.lo || {},
+    };
   }
 
   function decodeStateFromURL() {
-    const params = new URLSearchParams(window.location.search);
+    var params = new URLSearchParams(window.location.search);
 
     // Support new base64 format
     if (params.has('c')) {
       try {
-        const json = decodeURIComponent(escape(atob(params.get('c'))));
-        const state = JSON.parse(json);
-        return {
-          yearCode: state.s,
-          groupIndex: state.g !== undefined ? String(state.g) : null,
-          subgroup: state.sg || 'all',
-          freq: state.f || 'all',
-          uncheckedTypes: state.ut || [],
-          excluded: state.ex || [],
-          labSubgroupOverrides: state.lo || {},
-        };
+        var json = decodeURIComponent(escape(atob(params.get('c'))));
+        var state = JSON.parse(json);
+
+        // Multi-calendar format: { cals: [...], f: freq }
+        if (Array.isArray(state.cals)) {
+          return {
+            calStates: state.cals.map(decodeCalState),
+            freq: state.f || 'all',
+          };
+        }
+
+        // Single-calendar format: flat object with .s
+        if (state.s) {
+          return {
+            calStates: [decodeCalState(state)],
+            freq: state.f || 'all',
+          };
+        }
+
+        return null;
       } catch (e) { return null; }
     }
 
     // Legacy: plain params (backwards compat)
     if (params.has('spec')) {
       return {
-        yearCode: params.get('spec'),
-        groupIndex: params.get('group'),
-        subgroup: params.get('sub') || 'all',
+        calStates: [{
+          yearCode: params.get('spec'),
+          groupIndex: params.get('group'),
+          subgroup: params.get('sub') || 'all',
+          uncheckedTypes: [],
+          excluded: params.get('excl') ? params.get('excl').split(',') : [],
+          labSubgroupOverrides: {},
+        }],
         freq: params.get('freq') || 'all',
-        uncheckedTypes: [],
-        excluded: params.get('excl') ? params.get('excl').split(',') : [],
-        labSubgroupOverrides: {},
       };
     }
 
@@ -1747,30 +1826,62 @@
 
   // Restore from URL (takes priority over localStorage)
   function restoreFromURL() {
-    const state = decodeStateFromURL();
-    if (!state || !indexData) return false;
+    var decoded = decodeStateFromURL();
+    if (!decoded || !decoded.calStates || !decoded.calStates.length || !indexData) return false;
 
-    let specIndex = null;
-    for (let i = 0; i < indexData.specs.length; i++) {
-      if (indexData.specs[i].years.some(y => y.code === state.yearCode)) {
-        specIndex = i;
+    // Validate that at least the first calendar has a valid spec
+    var firstState = decoded.calStates[0];
+    var firstSpecIndex = null;
+    for (var i = 0; i < indexData.specs.length; i++) {
+      if (indexData.specs[i].years.some(function(y) { return y.code === firstState.yearCode; })) {
+        firstSpecIndex = i;
         break;
       }
     }
-    if (specIndex === null) return false;
+    if (firstSpecIndex === null) return false;
 
-    window._urlState = state;
-    selectSpec(CAL0, specIndex, indexData.specs[specIndex].name);
-
-    // For multi-year specs, onSpecChange only auto-selects when there's 1 year.
-    // Explicitly select the correct year so the cascade continues.
-    const spec = indexData.specs[specIndex];
-    if (spec.years.length > 1) {
-      const yearMatch = spec.years.find(y => y.code === state.yearCode);
-      if (yearMatch) {
-        getCal(CAL0).yearSelect.selectItem(yearMatch.code, `Year ${yearMatch.year}`);
-      }
+    // Apply global frequency
+    if (decoded.freq && decoded.freq !== 'all') {
+      selectedFreq = decoded.freq;
+      var freqRadio = $('#freq-toggle input[value="' + decoded.freq + '"]');
+      if (freqRadio) freqRadio.checked = true;
     }
+
+    // Create additional calendar panels for indices beyond 0
+    for (var ci = 1; ci < decoded.calStates.length; ci++) {
+      addCalendar();
+    }
+
+    // Restore each calendar via the cascade mechanism
+    decoded.calStates.forEach(function(calState, idx) {
+      var calId = calendars[idx].id;
+      var cal = getCal(calId);
+
+      // Find specIndex for this calendar's yearCode
+      var specIndex = null;
+      for (var si = 0; si < indexData.specs.length; si++) {
+        if (indexData.specs[si].years.some(function(y) { return y.code === calState.yearCode; })) {
+          specIndex = si;
+          break;
+        }
+      }
+      if (specIndex === null) return;
+
+      // Set per-calendar _urlState (used by setupYearSelect cascade)
+      cal._urlState = calState;
+
+      selectSpec(calId, specIndex, indexData.specs[specIndex].name);
+
+      // For multi-year specs, onSpecChange only auto-selects when there's 1 year.
+      // Explicitly select the correct year so the cascade continues.
+      var spec = indexData.specs[specIndex];
+      if (spec.years.length > 1) {
+        var yearMatch = spec.years.find(function(y) { return y.code === calState.yearCode; });
+        if (yearMatch) {
+          cal.yearSelect.selectItem(yearMatch.code, 'Year ' + yearMatch.year);
+        }
+      }
+    });
 
     return true;
   }
