@@ -232,10 +232,6 @@
     if (idx <= order.indexOf('subjects-card')) {
       calQ(calId, '.subject-list').innerHTML = '';
     }
-    // Reset frequency toggle
-    selectedFreq = 'all';
-    const freqAll = $('#freq-toggle input[value="all"]');
-    if (freqAll) freqAll.checked = true;
     // Clear schedule grid
     renderScheduleGrid();
   }
