@@ -28,14 +28,42 @@
 
   // --- State ---
   let indexData = null;   // { specs: [{ name, years: [{year,code}] }] }
-  let specData = null;    // { code, name, year, groups: [{name, hasSubgroups, entries}] }
-  let selectedGroup = null;
-  let selectedSubgroup = 'all';
   let restoring = false;
-  let labSubgroupOverrides = {};  // { subjectName: '1' | '2' | 'all' }
   let selectedFreq = 'all';
   let selectedMobileDay = 'Luni';
   let roomLegend = {};  // { roomCode: "Full location string" }
+
+  // --- Per-calendar state ---
+  function createCalendarState(id) {
+    return {
+      id: id,
+      specIndex: null,
+      yearCode: null,
+      groupIndex: null,
+      subgroup: 'all',
+      uncheckedTypes: [],
+      excludedSubjects: [],
+      labSubgroupOverrides: {},
+      yearData: null,   // was global specData
+      group: null,       // was global selectedGroup
+      panel: null,
+    };
+  }
+
+  let nextCalId = 1;
+  let calendars = [createCalendarState(0)];
+
+  function getCal(calId) {
+    return calendars.find(function(c) { return c.id === calId; });
+  }
+
+  function calQ(calId, selector) {
+    return getCal(calId).panel.querySelector(selector);
+  }
+
+  function calQAll(calId, selector) {
+    return getCal(calId).panel.querySelectorAll(selector);
+  }
 
   let _lastView = 'empty'; // 'empty' | 'grid'
   const DAYS = ['Luni', 'Marti', 'Miercuri', 'Joi', 'Vineri'];
@@ -71,10 +99,10 @@
   }
 
   // --- Custom select dropdown helper ---
-  function setupCustomSelect(triggerSel, listSel, hiddenSel, onChange) {
-    const trigger = $(triggerSel);
-    const list = $(listSel);
-    const hidden = $(hiddenSel);
+  function setupCustomSelect(triggerEl, listEl, hiddenEl, onChange) {
+    const trigger = triggerEl;
+    const list = listEl;
+    const hidden = hiddenEl;
     let hlIdx = -1;
 
     function open() { list.classList.remove('closing'); list.classList.add('open'); }
@@ -178,27 +206,28 @@
   });
 
   // --- Enable/disable cards ---
-  function enableCard(id) { $(`#${id}`).classList.remove('disabled'); }
-  function disableCard(id) { $(`#${id}`).classList.add('disabled'); }
+  function enableCard(calId, cls) { calQ(calId, '.' + cls).classList.remove('disabled'); }
+  function disableCard(calId, cls) { calQ(calId, '.' + cls).classList.add('disabled'); }
 
-  function resetFrom(step) {
+  function resetFrom(calId, step) {
+    var cal = getCal(calId);
     const order = ['year-card','group-card','subgroup-card','types-card','subjects-card'];
     const idx = order.indexOf(step);
-    for (let i = idx; i < order.length; i++) disableCard(order[i]);
+    for (let i = idx; i < order.length; i++) disableCard(calId, order[i]);
     // Null state that belongs to the reset level or below
-    if (idx <= order.indexOf('group-card')) specData = null;
+    if (idx <= order.indexOf('group-card')) cal.yearData = null;
     if (idx <= order.indexOf('subgroup-card')) {
-      selectedGroup = null;
-      selectedSubgroup = 'all';
-      labSubgroupOverrides = {};
+      cal.group = null;
+      cal.subgroup = 'all';
+      cal.labSubgroupOverrides = {};
     }
     // Reset types to all checked
     if (idx <= order.indexOf('types-card')) {
-      $$('#types-card input[type="checkbox"]').forEach(cb => { cb.checked = true; });
+      calQAll(calId, '.types-card input[type="checkbox"]').forEach(cb => { cb.checked = true; });
     }
     // Clear subject list
     if (idx <= order.indexOf('subjects-card')) {
-      $('#subject-list').innerHTML = '';
+      calQ(calId, '.subject-list').innerHTML = '';
     }
     // Reset frequency toggle
     selectedFreq = 'all';
@@ -209,18 +238,18 @@
   }
 
   // --- Spec change ---
-  function onSpecChange(specIndex) {
-    resetFrom('year-card');
+  function onSpecChange(calId, specIndex) {
+    resetFrom(calId, 'year-card');
     if (specIndex === '' || specIndex == null) return;
 
     const spec = indexData.specs[specIndex];
     if (!spec) return;
 
-    $('#spec-select').value = specIndex;
+    calQ(calId, '.spec-select').value = specIndex;
 
     yearSelect.reset('Select year\u2026');
     yearSelect.setItems(spec.years.map(y => ({ value: y.code, text: `Year ${y.year}` })));
-    enableCard('year-card');
+    enableCard(calId, 'year-card');
 
     if (spec.years.length === 1) {
       yearSelect.selectItem(spec.years[0].code, `Year ${spec.years[0].year}`);
@@ -231,9 +260,10 @@
   // --- Load index + combobox ---
   let comboboxItems = [];
   let highlightedIdx = -1;
+  const CAL0 = 0; // default calendar id
 
-  function renderList(filter) {
-    const list = $('#spec-list');
+  function renderList(calId, filter) {
+    const list = calQ(calId, '.spec-list');
     list.innerHTML = '';
     highlightedIdx = -1;
     comboboxItems.forEach((item, i) => {
@@ -241,54 +271,63 @@
       const li = document.createElement('li');
       li.textContent = item.name;
       li.dataset.index = item.index;
-      if (String(item.index) === $('#spec-select').value) li.classList.add('selected');
+      if (String(item.index) === calQ(calId, '.spec-select').value) li.classList.add('selected');
       li.addEventListener('mousedown', e => {
         e.preventDefault();
-        selectSpec(item.index, item.name);
+        selectSpec(calId, item.index, item.name);
       });
       list.appendChild(li);
     });
   }
 
-  function openList() {
-    const list = $('#spec-list');
+  function openList(calId) {
+    const list = calQ(calId, '.spec-list');
     list.classList.remove('closing');
     list.classList.add('open');
   }
-  function closeList() {
-    const list = $('#spec-list');
+  function closeList(calId) {
+    const list = calQ(calId, '.spec-list');
     if (!list.classList.contains('open')) return;
     list.classList.remove('open');
     list.classList.add('closing');
     highlightedIdx = -1;
-    $$('#spec-list li').forEach(li => li.classList.remove('highlighted'));
+    list.querySelectorAll('li').forEach(li => li.classList.remove('highlighted'));
     list.addEventListener('animationend', function handler() {
       list.removeEventListener('animationend', handler);
       list.classList.remove('closing');
     });
   }
 
-  function selectSpec(index, name) {
-    $('#spec-select').value = index;
-    $('#spec-input').value = name;
-    closeList();
-    onSpecChange(index);
+  function selectSpec(calId, index, name) {
+    calQ(calId, '.spec-select').value = index;
+    calQ(calId, '.spec-input').value = name;
+    closeList(calId);
+    onSpecChange(calId, index);
   }
+
+  // --- Initialize calendar 0 panel and controls ---
+  calendars[0].panel = document.getElementById('controls-panel');
+  yearSelect = setupYearSelect(CAL0);
+  groupSelect = setupGroupSelect(CAL0);
+  setupCombobox(CAL0);
+  setupTypeToggles(CAL0);
+  setupToggleSubjectsBtn(CAL0);
+  setupSubjectSearch(CAL0);
 
   fetch('data/index.json')
     .then(r => r.json())
     .then(data => {
       indexData = data;
       comboboxItems = data.specs.map((s, i) => ({ name: s.name, index: i }));
-      $('#spec-input').placeholder = 'Select specialization\u2026';
-      renderList('');
+      calQ(CAL0, '.spec-input').placeholder = 'Select specialization\u2026';
+      renderList(CAL0, '');
       if (!restoreFromURL()) {
         restoreState();
       }
     })
     .catch(() => {
-      $('#spec-input').placeholder = 'Failed to load data';
-      $('#spec-input').disabled = true;
+      calQ(CAL0, '.spec-input').placeholder = 'Failed to load data';
+      calQ(CAL0, '.spec-input').disabled = true;
     });
 
   // Fetch room legend (non-blocking, enriches ICS and tooltips)
@@ -298,180 +337,195 @@
     .catch(() => {});
 
   // --- Combobox events ---
-  const specInput = $('#spec-input');
+  function setupCombobox(calId) {
+    const specInput = calQ(calId, '.spec-input');
+    let blurTimeout = null;
 
-  specInput.addEventListener('focus', () => {
-    if (blurTimeout) clearTimeout(blurTimeout);
-    specInput.select();
-    renderList(specInput.value);
-    openList();
-  });
+    specInput.addEventListener('focus', () => {
+      if (blurTimeout) clearTimeout(blurTimeout);
+      specInput.select();
+      renderList(calId, specInput.value);
+      openList(calId);
+    });
 
-  specInput.addEventListener('input', () => {
-    renderList(specInput.value);
-    openList();
-  });
+    specInput.addEventListener('input', () => {
+      renderList(calId, specInput.value);
+      openList(calId);
+    });
 
-  let blurTimeout = null;
-  specInput.addEventListener('blur', () => {
-    blurTimeout = setTimeout(() => {
-      closeList();
-      // Revert text to current selection
-      const idx = $('#spec-select').value;
-      if (idx !== '' && indexData && indexData.specs[idx]) {
-        specInput.value = indexData.specs[idx].name;
-      } else {
-        specInput.value = '';
+    specInput.addEventListener('blur', () => {
+      blurTimeout = setTimeout(() => {
+        closeList(calId);
+        // Revert text to current selection
+        const idx = calQ(calId, '.spec-select').value;
+        if (idx !== '' && indexData && indexData.specs[idx]) {
+          specInput.value = indexData.specs[idx].name;
+        } else {
+          specInput.value = '';
+        }
+      }, 150);
+    });
+
+    specInput.addEventListener('keydown', e => {
+      const items = calQ(calId, '.spec-list').querySelectorAll('li');
+      if (!items.length) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        highlightedIdx = Math.min(highlightedIdx + 1, items.length - 1);
+        items.forEach((li, i) => li.classList.toggle('highlighted', i === highlightedIdx));
+        items[highlightedIdx].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        highlightedIdx = Math.max(highlightedIdx - 1, -1);
+        items.forEach((li, i) => li.classList.toggle('highlighted', i === highlightedIdx));
+        if (highlightedIdx >= 0) items[highlightedIdx].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (highlightedIdx >= 0 && highlightedIdx < items.length) {
+          const li = items[highlightedIdx];
+          selectSpec(calId, Number(li.dataset.index), li.textContent);
+        }
+      } else if (e.key === 'Escape') {
+        closeList(calId);
+        specInput.blur();
       }
-    }, 150);
-  });
-
-  specInput.addEventListener('keydown', e => {
-    const items = $$('#spec-list li');
-    if (!items.length) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      highlightedIdx = Math.min(highlightedIdx + 1, items.length - 1);
-      items.forEach((li, i) => li.classList.toggle('highlighted', i === highlightedIdx));
-      items[highlightedIdx].scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      highlightedIdx = Math.max(highlightedIdx - 1, -1);
-      items.forEach((li, i) => li.classList.toggle('highlighted', i === highlightedIdx));
-      if (highlightedIdx >= 0) items[highlightedIdx].scrollIntoView({ block: 'nearest' });
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (highlightedIdx >= 0 && highlightedIdx < items.length) {
-        const li = items[highlightedIdx];
-        selectSpec(Number(li.dataset.index), li.textContent);
-      }
-    } else if (e.key === 'Escape') {
-      closeList();
-      specInput.blur();
-    }
-  });
+    });
+  }
 
   // --- Year custom select (fetch spec JSON on change) ---
-  const yearSelect = setupCustomSelect('#year-trigger', '#year-list', '#year-select', function(code) {
-    resetFrom('group-card');
-    if (!code) return;
+  var yearSelect, groupSelect; // forward declarations for cross-references
+  function setupYearSelect(calId) {
+    return setupCustomSelect(
+      calQ(calId, '.year-trigger'), calQ(calId, '.year-list'), calQ(calId, '.year-select'),
+      function(code) {
+        var cal = getCal(calId);
+        resetFrom(calId, 'group-card');
+        if (!code) return;
 
-    groupSelect.reset('Loading\u2026');
-    enableCard('group-card');
+        groupSelect.reset('Loading\u2026');
+        enableCard(calId, 'group-card');
 
-    fetch(`data/${code}.json`)
-      .then(r => r.json())
-      .then(data => {
-        specData = data;
-        groupSelect.reset('Select group\u2026');
-        groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
-        if (window._urlState) {
-          const us = window._urlState;
+        fetch(`data/${code}.json`)
+          .then(r => r.json())
+          .then(data => {
+            cal.yearData = data;
+            groupSelect.reset('Select group\u2026');
+            groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
+            if (window._urlState) {
+              const us = window._urlState;
 
-          // Apply unchecked types before group selection triggers updateSubjects
-          if (us.uncheckedTypes && us.uncheckedTypes.length) {
-            $$('#types-card input[type="checkbox"]').forEach(cb => {
-              if (us.uncheckedTypes.includes(cb.dataset.type)) cb.checked = false;
-            });
-          }
-
-          if (us.freq && us.freq !== 'all') {
-            selectedFreq = us.freq;
-            const freqRadio = $(`#freq-toggle input[value="${us.freq}"]`);
-            if (freqRadio) freqRadio.checked = true;
-          }
-
-          // Apply labSubgroupOverrides before group selection
-          if (us.labSubgroupOverrides && Object.keys(us.labSubgroupOverrides).length) {
-            labSubgroupOverrides = us.labSubgroupOverrides;
-          }
-
-          if (us.groupIndex !== null && us.groupIndex !== undefined) {
-            const gi = Number(us.groupIndex);
-            if (data.groups[gi]) {
-              groupSelect.selectItem(gi, `Group ${data.groups[gi].name}`);
-            }
-          }
-
-          // Apply subgroup + excluded after group cascade completes
-          setTimeout(() => {
-            if (us.subgroup && us.subgroup !== 'all' && selectedGroup && selectedGroup.hasSubgroups) {
-              const subRadio = $(`#subgroup-pills input[value="${us.subgroup}"]`);
-              if (subRadio) {
-                subRadio.checked = true;
-                selectedSubgroup = us.subgroup;
+              // Apply unchecked types before group selection triggers updateSubjects
+              if (us.uncheckedTypes && us.uncheckedTypes.length) {
+                calQAll(calId, '.types-card input[type="checkbox"]').forEach(cb => {
+                  if (us.uncheckedTypes.includes(cb.dataset.type)) cb.checked = false;
+                });
               }
+
+              if (us.freq && us.freq !== 'all') {
+                selectedFreq = us.freq;
+                const freqRadio = $(`#freq-toggle input[value="${us.freq}"]`);
+                if (freqRadio) freqRadio.checked = true;
+              }
+
+              // Apply labSubgroupOverrides before group selection
+              if (us.labSubgroupOverrides && Object.keys(us.labSubgroupOverrides).length) {
+                cal.labSubgroupOverrides = us.labSubgroupOverrides;
+              }
+
+              if (us.groupIndex !== null && us.groupIndex !== undefined) {
+                const gi = Number(us.groupIndex);
+                if (data.groups[gi]) {
+                  groupSelect.selectItem(gi, `Group ${data.groups[gi].name}`);
+                }
+              }
+
+              // Apply subgroup + excluded after group cascade completes
+              setTimeout(() => {
+                if (us.subgroup && us.subgroup !== 'all' && cal.group && cal.group.hasSubgroups) {
+                  const subRadio = calQ(calId, '.subgroup-pills input[value="' + us.subgroup + '"]');
+                  if (subRadio) {
+                    subRadio.checked = true;
+                    cal.subgroup = us.subgroup;
+                  }
+                }
+                if (us.excluded && us.excluded.length) {
+                  const excSet = new Set(us.excluded);
+                  calQAll(calId, '.subject-list input[data-key]').forEach(cb => {
+                    if (excSet.has(cb.dataset.key)) cb.checked = false;
+                  });
+                  calQAll(calId, '.subject-list .subject-group').forEach(g => {
+                    const parentCb = g.querySelector('.subject-parent input');
+                    const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
+                    if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
+                  });
+                }
+                updatePreview();
+                delete window._urlState;
+              }, 100);
             }
-            if (us.excluded && us.excluded.length) {
-              const excSet = new Set(us.excluded);
-              $$('#subject-list input[data-key]').forEach(cb => {
-                if (excSet.has(cb.dataset.key)) cb.checked = false;
-              });
-              $$('#subject-list .subject-group').forEach(g => {
-                const parentCb = g.querySelector('.subject-parent input');
-                const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
-                if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
-              });
-            }
-            updatePreview();
-            delete window._urlState;
-          }, 100);
-        }
-        saveState();
-      })
-      .catch(() => {
-        groupSelect.reset('Failed to load');
-      });
-  });
+            saveState();
+          })
+          .catch(() => {
+            groupSelect.reset('Failed to load');
+          });
+      }
+    );
+  }
 
   // --- Group custom select ---
-  const groupSelect = setupCustomSelect('#group-trigger', '#group-list', '#group-select', function(val) {
-    resetFrom('subgroup-card');
-    labSubgroupOverrides = {};
-    if (val === '' || val == null || !specData) return;
+  function setupGroupSelect(calId) {
+    return setupCustomSelect(
+      calQ(calId, '.group-trigger'), calQ(calId, '.group-list'), calQ(calId, '.group-select'),
+      function(val) {
+        var cal = getCal(calId);
+        resetFrom(calId, 'subgroup-card');
+        cal.labSubgroupOverrides = {};
+        if (val === '' || val == null || !cal.yearData) return;
 
-    const group = specData.groups[val];
-    selectedGroup = group;
+        const group = cal.yearData.groups[val];
+        cal.group = group;
 
-    // Subgroup pills
-    const pills = $('#subgroup-pills');
-    pills.innerHTML = '';
-    if (group.hasSubgroups) {
-      ['1','2','all'].forEach(v => {
-        const lbl = document.createElement('label');
-        const inp = document.createElement('input');
-        inp.type = 'radio';
-        inp.name = 'subgroup';
-        inp.value = v;
-        if (v === 'all') inp.checked = true;
-        const span = document.createElement('span');
-        span.textContent = v === 'all' ? 'Both' : `/${v}`;
-        lbl.appendChild(inp);
-        lbl.appendChild(span);
-        pills.appendChild(lbl);
-        inp.addEventListener('change', () => {
-          selectedSubgroup = v;
-          labSubgroupOverrides = {};
-          updateSubjects();
-          updatePreview();
-        });
-      });
-      selectedSubgroup = 'all';
-      enableCard('subgroup-card');
-    } else {
-      selectedSubgroup = 'all';
-    }
+        // Subgroup pills
+        const pills = calQ(calId, '.subgroup-pills');
+        pills.innerHTML = '';
+        if (group.hasSubgroups) {
+          ['1','2','all'].forEach(v => {
+            const lbl = document.createElement('label');
+            const inp = document.createElement('input');
+            inp.type = 'radio';
+            inp.name = 'subgroup';
+            inp.value = v;
+            if (v === 'all') inp.checked = true;
+            const span = document.createElement('span');
+            span.textContent = v === 'all' ? 'Both' : `/${v}`;
+            lbl.appendChild(inp);
+            lbl.appendChild(span);
+            pills.appendChild(lbl);
+            inp.addEventListener('change', () => {
+              cal.subgroup = v;
+              cal.labSubgroupOverrides = {};
+              updateSubjects(calId);
+              updatePreview();
+            });
+          });
+          cal.subgroup = 'all';
+          enableCard(calId, 'subgroup-card');
+        } else {
+          cal.subgroup = 'all';
+        }
 
-    enableCard('types-card');
-    enableCard('subjects-card');
-    updateSubjects();
-    updatePreview();
-  });
+        enableCard(calId, 'types-card');
+        enableCard(calId, 'subjects-card');
+        updateSubjects(calId);
+        updatePreview();
+      }
+    );
+  }
 
   // --- Mini-pill disabled state ---
-  function updateMiniPillsDisabled() {
-    $$('.sg-mini-pills').forEach(p => {
+  function updateMiniPillsDisabled(calId) {
+    calQAll(calId, '.sg-mini-pills').forEach(p => {
       const lbl = p.closest('label');
       const cb = lbl && lbl.querySelector('input[data-key]');
       p.classList.toggle('disabled', !!(cb && !cb.checked));
@@ -479,27 +533,29 @@
   }
 
   // --- Type toggles (batch check/uncheck matching subject entries) ---
-  $$('#types-card input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener('change', () => {
-      const t = cb.dataset.type;
-      $$('#subject-list input[data-key]').forEach(sc => {
-        if (sc.dataset.key.endsWith('|||' + t)) sc.checked = cb.checked;
+  function setupTypeToggles(calId) {
+    calQAll(calId, '.types-card input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const t = cb.dataset.type;
+        calQAll(calId, '.subject-list input[data-key]').forEach(sc => {
+          if (sc.dataset.key.endsWith('|||' + t)) sc.checked = cb.checked;
+        });
+        // Sync all parent checkboxes
+        calQAll(calId, '.subject-list .subject-group').forEach(g => {
+          const parentCb = g.querySelector('.subject-parent input');
+          const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
+          if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
+        });
+        updateToggleBtn(calId);
+        updatePreview();
       });
-      // Sync all parent checkboxes
-      $$('#subject-list .subject-group').forEach(g => {
-        const parentCb = g.querySelector('.subject-parent input');
-        const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
-        if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
-      });
-      updateToggleBtn();
-      updatePreview();
     });
-  });
+  }
 
   // --- Subject list ---
-  function getActiveTypes() {
+  function getActiveTypes(calId) {
     const types = new Set();
-    $$('#types-card input[type="checkbox"]').forEach(cb => {
+    calQAll(calId, '.types-card input[type="checkbox"]').forEach(cb => {
       if (cb.checked) types.add(cb.dataset.type);
     });
     return types;
@@ -512,11 +568,12 @@
     parentCb.indeterminate = checked > 0 && checked < total;
   }
 
-  function updateSubjects() {
-    if (!selectedGroup) return;
+  function updateSubjects(calId) {
+    var cal = getCal(calId);
+    if (!cal.group) return;
 
     const allTypes = new Set(['Curs', 'Seminar', 'Laborator']);
-    const filtered = filterEntries(selectedGroup, allTypes, new Set());
+    const filtered = filterEntries(calId, cal.group, allTypes, new Set());
 
     // Build Map<subject, Set<type>>
     const subjTypes = new Map();
@@ -525,7 +582,7 @@
       subjTypes.get(e.subject).add(e.type);
     });
 
-    const list = $('#subject-list');
+    const list = calQ(calId, '.subject-list');
     // Preserve checked state using composite keys
     const prev = {};
     list.querySelectorAll('input[data-key]').forEach(cb => { prev[cb.dataset.key] = cb.checked; });
@@ -548,7 +605,7 @@
         cb.type = 'checkbox';
         cb.dataset.key = key;
         cb.checked = prev[key] !== undefined ? prev[key] : true;
-        cb.addEventListener('change', () => { updateToggleBtn(); updatePreview(); });
+        cb.addEventListener('change', () => { updateToggleBtn(calId); updatePreview(); });
         const nameSpan = document.createElement('span');
         nameSpan.textContent = subj;
         const badgeSpan = document.createElement('span');
@@ -558,10 +615,10 @@
         lbl.appendChild(nameSpan);
 
           // Inline subgroup mini-pills for Lab-only subjects when global is "Both"
-          if (t === 'Laborator' && selectedSubgroup === 'all' && selectedGroup.hasSubgroups) {
+          if (t === 'Laborator' && cal.subgroup === 'all' && cal.group.hasSubgroups) {
             const pills = document.createElement('span');
             pills.className = 'sg-mini-pills';
-            const current = labSubgroupOverrides[subj] || 'all';
+            const current = cal.labSubgroupOverrides[subj] || 'all';
             ['1', '2', 'all'].forEach(sv => {
               const btn = document.createElement('button');
               btn.type = 'button';
@@ -570,7 +627,7 @@
               btn.addEventListener('click', e => {
                 e.preventDefault();
                 e.stopPropagation();
-                labSubgroupOverrides[subj] = sv;
+                cal.labSubgroupOverrides[subj] = sv;
                 pills.querySelectorAll('button').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 updatePreview();
@@ -611,7 +668,7 @@
           cb.checked = prev[key] !== undefined ? prev[key] : true;
           cb.addEventListener('change', () => {
             syncParent(parentCb, childCbs);
-            updateToggleBtn();
+            updateToggleBtn(calId);
             updatePreview();
           });
           childCbs.push(cb);
@@ -624,10 +681,10 @@
           lbl.appendChild(nameSpan);
 
           // Inline subgroup mini-pills for Lab when global is "Both"
-          if (t === 'Laborator' && selectedSubgroup === 'all' && selectedGroup.hasSubgroups) {
+          if (t === 'Laborator' && cal.subgroup === 'all' && cal.group.hasSubgroups) {
             const pills = document.createElement('span');
             pills.className = 'sg-mini-pills';
-            const current = labSubgroupOverrides[subj] || 'all';
+            const current = cal.labSubgroupOverrides[subj] || 'all';
             ['1', '2', 'all'].forEach(sv => {
               const btn = document.createElement('button');
               btn.type = 'button';
@@ -636,7 +693,7 @@
               btn.addEventListener('click', e => {
                 e.preventDefault();
                 e.stopPropagation();
-                labSubgroupOverrides[subj] = sv;
+                cal.labSubgroupOverrides[subj] = sv;
                 pills.querySelectorAll('button').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 updatePreview();
@@ -657,7 +714,7 @@
         parentCb.addEventListener('change', () => {
           childCbs.forEach(c => { c.checked = parentCb.checked; });
           parentCb.indeterminate = false;
-          updateToggleBtn();
+          updateToggleBtn(calId);
           updatePreview();
         });
 
@@ -666,56 +723,62 @@
       }
     });
 
-    updateToggleBtn();
-    updateMiniPillsDisabled();
-    $('#subject-search').value = '';
+    updateToggleBtn(calId);
+    updateMiniPillsDisabled(calId);
+    calQ(calId, '.subject-search').value = '';
   }
 
-  function updateToggleBtn() {
-    const cbs = [...$$('#subject-list input[data-key]')].filter(
+  function updateToggleBtn(calId) {
+    const cbs = [...calQAll(calId, '.subject-list input[data-key]')].filter(
       cb => !cb.closest('label, .subject-group').classList.contains('filtered-out')
     );
     const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
-    $('#toggle-subjects-btn').textContent = allChecked ? 'Deselect all' : 'Select all';
+    calQ(calId, '.toggle-subjects-btn').textContent = allChecked ? 'Deselect all' : 'Select all';
   }
 
-  $('#toggle-subjects-btn').addEventListener('click', () => {
-    const cbs = [...$$('#subject-list input[data-key]')].filter(
-      cb => !cb.closest('label, .subject-group').classList.contains('filtered-out')
-    );
-    const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
-    cbs.forEach(cb => { cb.checked = !allChecked; });
-    // Sync all parent checkboxes
-    $$('#subject-list .subject-group').forEach(g => {
-      const parentCb = g.querySelector('.subject-parent input');
-      const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
-      if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
+  function setupToggleSubjectsBtn(calId) {
+    calQ(calId, '.toggle-subjects-btn').addEventListener('click', () => {
+      const cbs = [...calQAll(calId, '.subject-list input[data-key]')].filter(
+        cb => !cb.closest('label, .subject-group').classList.contains('filtered-out')
+      );
+      const allChecked = cbs.length > 0 && cbs.every(cb => cb.checked);
+      cbs.forEach(cb => { cb.checked = !allChecked; });
+      // Sync all parent checkboxes
+      calQAll(calId, '.subject-list .subject-group').forEach(g => {
+        const parentCb = g.querySelector('.subject-parent input');
+        const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
+        if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
+      });
+      updateToggleBtn(calId);
+      updatePreview();
     });
-    updateToggleBtn();
-    updatePreview();
-  });
+  }
 
   // --- Subject search ---
-  $('#subject-search').addEventListener('input', function() {
-    const q = this.value;
-    // Filter grouped subjects
-    $$('#subject-list .subject-group').forEach(g => {
-      const name = g.querySelector('.subject-parent span').textContent;
-      g.classList.toggle('filtered-out', !fuzzyMatch(name, q));
+  function setupSubjectSearch(calId) {
+    calQ(calId, '.subject-search').addEventListener('input', function() {
+      const q = this.value;
+      // Filter grouped subjects
+      calQAll(calId, '.subject-list .subject-group').forEach(g => {
+        const name = g.querySelector('.subject-parent span').textContent;
+        g.classList.toggle('filtered-out', !fuzzyMatch(name, q));
+      });
+      // Filter flat (single-type) labels
+      calQ(calId, '.subject-list').querySelectorAll(':scope > label').forEach(lbl => {
+        const spans = lbl.querySelectorAll('span');
+        const name = spans.length ? spans[0].textContent : '';
+        lbl.classList.toggle('filtered-out', !fuzzyMatch(name, q));
+      });
+      updateToggleBtn(calId);
     });
-    // Filter flat (single-type) labels
-    $$('#subject-list > label').forEach(lbl => {
-      const spans = lbl.querySelectorAll('span');
-      const name = spans.length ? spans[0].textContent : '';
-      lbl.classList.toggle('filtered-out', !fuzzyMatch(name, q));
-    });
-    updateToggleBtn();
-  });
+  }
 
   // --- Filtering ---
-  function filterEntries(group, types, excludedKeys) {
+  function filterEntries(calId, group, types, excludedKeys) {
+    var cal = getCal(calId);
     const gName = group.name;
-    const sub = selectedSubgroup;
+    const sub = cal.subgroup;
+    const overrides = cal.labSubgroupOverrides;
     return group.entries.filter(e => {
       if (!types.has(e.type)) return false;
       if (excludedKeys.has(e.subject + '|||' + e.type)) return false;
@@ -726,8 +789,8 @@
         const parts = f.split('/');
         if (parts[0] !== gName) return false;
         // Per-subject override takes priority over global
-        const effectiveSub = (sub === 'all' && labSubgroupOverrides[e.subject])
-          ? labSubgroupOverrides[e.subject]
+        const effectiveSub = (sub === 'all' && overrides[e.subject])
+          ? overrides[e.subject]
           : sub;
         if (effectiveSub && effectiveSub !== 'all' && parts[1] !== effectiveSub) return false;
         return true;
@@ -737,14 +800,15 @@
   }
 
   // --- Preview ---
-  function getFilteredEntries() {
-    if (!selectedGroup) return [];
+  function getFilteredEntries(calId) {
+    var cal = getCal(calId);
+    if (!cal.group) return [];
     const allTypes = new Set(['Curs', 'Seminar', 'Laborator']);
     const excluded = new Set();
-    $$('#subject-list input[data-key]').forEach(cb => {
+    calQAll(calId, '.subject-list input[data-key]').forEach(cb => {
       if (!cb.checked) excluded.add(cb.dataset.key);
     });
-    return filterEntries(selectedGroup, allTypes, excluded);
+    return filterEntries(calId, cal.group, allTypes, excluded);
   }
 
   function filterByFrequency(entries, freq) {
@@ -788,7 +852,8 @@
   }
 
   function renderScheduleGrid() {
-    const entries = getFilteredEntries();
+    var cal = getCal(CAL0);
+    const entries = getFilteredEntries(CAL0);
     const count = entries.reduce((sum, e) => sum + e.dates.length, 0);
     $('#event-count').textContent = count;
     $('#download-btn').disabled = count === 0;
@@ -799,8 +864,8 @@
     const grid = $('#schedule-grid');
     const empty = $('#schedule-empty');
 
-    if (!selectedGroup || filtered.length === 0) {
-      if (!selectedGroup) {
+    if (!cal.group || filtered.length === 0) {
+      if (!cal.group) {
         empty.querySelector('p').textContent = 'Select a specialization, year, and group to see your schedule';
       } else {
         empty.querySelector('p').textContent = 'No events match your current filters';
@@ -926,7 +991,7 @@
 
         // Subgroup (own row, only when "Both" selected and event is subgroup-specific)
         let subgroupText = '';
-        if (selectedSubgroup === 'all' && ev.formation && ev.formation.includes('/')) {
+        if (cal.subgroup === 'all' && ev.formation && ev.formation.includes('/')) {
           subgroupText = ev.formation;
           const sgEl = document.createElement('div');
           sgEl.className = 'event-meta';
@@ -1043,7 +1108,7 @@
   }, { passive: true });
 
   function updatePreview() {
-    updateMiniPillsDisabled();
+    updateMiniPillsDisabled(CAL0);
     renderScheduleGrid();
   }
 
@@ -1082,16 +1147,17 @@
     if (!sheet) return;
 
     function updatePeekText() {
+      var cal = getCal(CAL0);
       const parts = [];
-      const specIdx = $('#spec-select').value;
+      const specIdx = calQ(CAL0, '.spec-select').value;
       if (specIdx !== '' && indexData && indexData.specs[specIdx]) {
         const specName = indexData.specs[specIdx].name;
         parts.push(specName.length > 20 ? specName.substring(0, 20) + '...' : specName);
       }
-      const yearCode = $('#year-select').value;
+      const yearCode = calQ(CAL0, '.year-select').value;
       if (yearCode) parts.push(yearCode);
-      if (selectedGroup) parts.push('G' + selectedGroup.name);
-      if (selectedSubgroup !== 'all') parts.push('/' + selectedSubgroup);
+      if (cal.group) parts.push('G' + cal.group.name);
+      if (cal.subgroup !== 'all') parts.push('/' + cal.subgroup);
 
       peekText.textContent = parts.length ? parts.join(' \u203A ') : 'Select options...';
     }
@@ -1161,20 +1227,21 @@
   function saveState() {
     if (restoring) return;
     try {
+      var cal = getCal(CAL0);
       const state = {};
-      state.specIndex = $('#spec-select').value;
-      state.yearCode = $('#year-select').value;
-      state.groupIndex = $('#group-select').value;
-      state.subgroup = selectedSubgroup;
+      state.specIndex = calQ(CAL0, '.spec-select').value;
+      state.yearCode = calQ(CAL0, '.year-select').value;
+      state.groupIndex = calQ(CAL0, '.group-select').value;
+      state.subgroup = cal.subgroup;
       state.uncheckedTypes = [];
-      $$('#types-card input[type="checkbox"]').forEach(cb => {
+      calQAll(CAL0, '.types-card input[type="checkbox"]').forEach(cb => {
         if (!cb.checked) state.uncheckedTypes.push(cb.dataset.type);
       });
       state.excludedKeys = [];
-      $$('#subject-list input[data-key]').forEach(cb => {
+      calQAll(CAL0, '.subject-list input[data-key]').forEach(cb => {
         if (!cb.checked) state.excludedKeys.push(cb.dataset.key);
       });
-      state.labSubgroupOverrides = labSubgroupOverrides;
+      state.labSubgroupOverrides = cal.labSubgroupOverrides;
       localStorage.setItem('fmi-cal-state', JSON.stringify(state));
       if (window._updateBottomSheetPeek) window._updateBottomSheetPeek();
     } catch (e) {}
@@ -1189,14 +1256,15 @@
       if (!indexData.specs[state.specIndex]) return;
 
       restoring = true;
+      var cal = getCal(CAL0);
 
       const spec = indexData.specs[state.specIndex];
-      $('#spec-select').value = state.specIndex;
-      $('#spec-input').value = spec.name;
+      calQ(CAL0, '.spec-select').value = state.specIndex;
+      calQ(CAL0, '.spec-input').value = spec.name;
 
       // Populate year options (same as onSpecChange)
       yearSelect.setItems(spec.years.map(y => ({ value: y.code, text: `Year ${y.year}` })));
-      enableCard('year-card');
+      enableCard(CAL0, 'year-card');
 
       // Validate yearCode
       if (!state.yearCode || !spec.years.some(y => y.code === state.yearCode)) {
@@ -1209,11 +1277,11 @@
       fetch(`data/${state.yearCode}.json`)
         .then(r => r.json())
         .then(data => {
-          specData = data;
+          cal.yearData = data;
 
           // Populate group options
           groupSelect.setItems(data.groups.map((g, i) => ({ value: i, text: `Group ${g.name}` })));
-          enableCard('group-card');
+          enableCard(CAL0, 'group-card');
 
           // Validate groupIndex
           const gi = state.groupIndex;
@@ -1222,11 +1290,11 @@
             return;
           }
           groupSelect.setValue(gi);
-          selectedGroup = data.groups[gi];
+          cal.group = data.groups[gi];
 
           // Build subgroup pills (same as group-change handler)
-          const group = selectedGroup;
-          const pills = $('#subgroup-pills');
+          const group = cal.group;
+          const pills = calQ(CAL0, '.subgroup-pills');
           pills.innerHTML = '';
           if (group.hasSubgroups) {
             const savedSub = (state.subgroup === '1' || state.subgroup === '2') ? state.subgroup : 'all';
@@ -1243,41 +1311,41 @@
               lbl.appendChild(span);
               pills.appendChild(lbl);
               inp.addEventListener('change', () => {
-                selectedSubgroup = v;
-                labSubgroupOverrides = {};
-                updateSubjects();
+                cal.subgroup = v;
+                cal.labSubgroupOverrides = {};
+                updateSubjects(CAL0);
                 updatePreview();
               });
             });
-            selectedSubgroup = savedSub;
+            cal.subgroup = savedSub;
             if (state.labSubgroupOverrides) {
-              labSubgroupOverrides = state.labSubgroupOverrides;
+              cal.labSubgroupOverrides = state.labSubgroupOverrides;
             }
-            enableCard('subgroup-card');
+            enableCard(CAL0, 'subgroup-card');
           } else {
-            selectedSubgroup = 'all';
+            cal.subgroup = 'all';
           }
 
           // Restore unchecked types
           if (state.uncheckedTypes && state.uncheckedTypes.length) {
-            $$('#types-card input[type="checkbox"]').forEach(cb => {
+            calQAll(CAL0, '.types-card input[type="checkbox"]').forEach(cb => {
               if (state.uncheckedTypes.includes(cb.dataset.type)) cb.checked = false;
             });
           }
 
-          enableCard('types-card');
-          enableCard('subjects-card');
+          enableCard(CAL0, 'types-card');
+          enableCard(CAL0, 'subjects-card');
 
-          updateSubjects();
+          updateSubjects(CAL0);
 
           // Apply excludedKeys (uncheck matching inputs)
           if (state.excludedKeys && state.excludedKeys.length) {
             const excSet = new Set(state.excludedKeys);
-            $$('#subject-list input[data-key]').forEach(cb => {
+            calQAll(CAL0, '.subject-list input[data-key]').forEach(cb => {
               if (excSet.has(cb.dataset.key)) cb.checked = false;
             });
             // Sync all parent checkboxes
-            $$('#subject-list .subject-group').forEach(g => {
+            calQAll(CAL0, '.subject-list .subject-group').forEach(g => {
               const parentCb = g.querySelector('.subject-parent input');
               const childCbs = [...g.querySelectorAll('.subject-children input[data-key]')];
               if (parentCb && childCbs.length) syncParent(parentCb, childCbs);
@@ -1297,37 +1365,38 @@
 
   // --- Shareable URLs (base64-encoded JSON) ---
   function encodeStateToURL() {
-    const specIdx = $('#spec-select').value;
+    var cal = getCal(CAL0);
+    const specIdx = calQ(CAL0, '.spec-select').value;
     if (specIdx === '' || specIdx == null) return;
 
-    const yearCode = $('#year-select').value;
+    const yearCode = calQ(CAL0, '.year-select').value;
     if (!yearCode) return;
 
     const state = { s: yearCode }; // s = spec (yearCode)
 
-    const groupIdx = $('#group-select').value;
+    const groupIdx = calQ(CAL0, '.group-select').value;
     if (groupIdx !== '' && groupIdx != null) {
       state.g = Number(groupIdx); // g = group index
-      if (selectedSubgroup !== 'all') state.sg = selectedSubgroup;
+      if (cal.subgroup !== 'all') state.sg = cal.subgroup;
     }
     if (selectedFreq !== 'all') state.f = selectedFreq; // f = frequency
 
     // Unchecked types
     const uncheckedTypes = [];
-    $$('#types-card input[type="checkbox"]').forEach(cb => {
+    calQAll(CAL0, '.types-card input[type="checkbox"]').forEach(cb => {
       if (!cb.checked) uncheckedTypes.push(cb.dataset.type);
     });
     if (uncheckedTypes.length) state.ut = uncheckedTypes;
 
     // Excluded subjects (use short keys: strip the type suffix for compactness)
     const excluded = [];
-    $$('#subject-list input[data-key]').forEach(cb => {
+    calQAll(CAL0, '.subject-list input[data-key]').forEach(cb => {
       if (!cb.checked) excluded.push(cb.dataset.key);
     });
     if (excluded.length) state.ex = excluded;
 
     // Lab subgroup overrides
-    if (Object.keys(labSubgroupOverrides).length) state.lo = labSubgroupOverrides;
+    if (Object.keys(cal.labSubgroupOverrides).length) state.lo = cal.labSubgroupOverrides;
 
     const json = JSON.stringify(state);
     const b64 = btoa(unescape(encodeURIComponent(json)));
@@ -1418,7 +1487,7 @@
     if (specIndex === null) return false;
 
     window._urlState = state;
-    selectSpec(specIndex, indexData.specs[specIndex].name);
+    selectSpec(CAL0, specIndex, indexData.specs[specIndex].name);
 
     // For multi-year specs, onSpecChange only auto-selects when there's 1 year.
     // Explicitly select the correct year so the cascade continues.
@@ -1472,7 +1541,8 @@
   }
 
   $('#download-btn').addEventListener('click', () => {
-    const entries = getFilteredEntries();
+    var cal = getCal(CAL0);
+    const entries = getFilteredEntries(CAL0);
     if (!entries.length) return;
 
     const ics = generateICS(entries);
@@ -1482,9 +1552,9 @@
     a.href = url;
 
     // Build filename: spec-group-subgroup.ics
-    const code = specData ? specData.code : 'schedule';
-    const gName = selectedGroup.name.replace('/', '-');
-    const sub = selectedSubgroup === 'all' ? 'all' : selectedSubgroup;
+    const code = cal.yearData ? cal.yearData.code : 'schedule';
+    const gName = cal.group.name.replace('/', '-');
+    const sub = cal.subgroup === 'all' ? 'all' : cal.subgroup;
     a.download = `${code}-${gName}-${sub}.ics`;
 
     document.body.appendChild(a);
