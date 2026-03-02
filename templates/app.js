@@ -1060,8 +1060,11 @@
     calendars.forEach(function(cal) {
       if (!cal.group) return;
       var entries = getFilteredEntries(cal.id);
-      entries.forEach(function(e) { e._calId = cal.id; });
-      all.push.apply(all, entries);
+      entries.forEach(function(e) {
+        var copy = Object.assign({}, e);
+        copy._calId = cal.id;
+        all.push(copy);
+      });
     });
     return deduplicateEntries(all);
   }
@@ -1244,10 +1247,13 @@
         metaEl.textContent = `${BADGE[ev.type] || ''} ${ev.room || ''}`;
         el.appendChild(metaEl);
 
-        // Subgroup (own row, only when "Both" selected and event is subgroup-specific)
+        // Subgroup (own row, only when any source calendar uses "Both" and event is subgroup-specific)
         let subgroupText = '';
-        var evCal = getCal(ev._calId);
-        if (evCal.subgroup === 'all' && ev.formation && ev.formation.includes('/')) {
+        var showSubgroup = ev._calIds.some(function(cid) {
+          var c = getCal(cid);
+          return c && c.subgroup === 'all';
+        });
+        if (showSubgroup && ev.formation && ev.formation.includes('/')) {
           subgroupText = ev.formation;
           const sgEl = document.createElement('div');
           sgEl.className = 'event-meta';
