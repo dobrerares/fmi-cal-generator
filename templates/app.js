@@ -685,7 +685,7 @@
                 if (doneFn) doneFn();
               }, 100);
             }
-            saveState();
+            if (!cal._urlState) saveState();
           })
           .catch(() => {
             cal.groupSelect.reset('Failed to load');
@@ -1523,7 +1523,7 @@
       var calStates = calendars.map(function(cal) {
         return syncCalStateFromDOM(cal.id);
       });
-      var payload = { v: 2, calendars: calStates };
+      var payload = { v: 2, calendars: calStates, freq: selectedFreq };
       localStorage.setItem('fmi-cal-state', JSON.stringify(payload));
       if (window._updateBottomSheetPeek) window._updateBottomSheetPeek();
       calendars.forEach(function(c) { updateAccordionSummary(c.id); });
@@ -1662,6 +1662,13 @@
 
       restoring = true;
 
+      // Restore global frequency
+      if (saved.freq && saved.freq !== 'all') {
+        selectedFreq = saved.freq;
+        var freqRadio = $('#freq-toggle input[value="' + saved.freq + '"]');
+        if (freqRadio) freqRadio.checked = true;
+      }
+
       // Create additional calendar panels for indices beyond 0
       for (var i = 1; i < calStates.length; i++) {
         addCalendar();
@@ -1676,6 +1683,7 @@
           if (pendingRestores === 0) {
             restoring = false;
             updatePreview();
+            saveState(); // migrate v1 → v2 format
           }
         });
       });
