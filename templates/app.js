@@ -52,6 +52,7 @@
     };
   }
 
+  var MAX_CALENDARS = 5;
   let nextCalId = 1;
   let calendars = [createCalendarState(0)];
 
@@ -484,6 +485,8 @@
 
   // --- Add calendar handler ---
   function addCalendar() {
+    if (calendars.length >= MAX_CALENDARS) return;
+
     var newId = nextCalId++;
     var newCal = createCalendarState(newId);
     calendars.push(newCal);
@@ -504,6 +507,9 @@
       calQ(newId, '.spec-input').placeholder = 'Select specialization\u2026';
     }
 
+    // Disable add button if at max
+    document.getElementById('add-calendar-btn').disabled = calendars.length >= MAX_CALENDARS;
+
     saveState();
   }
 
@@ -523,6 +529,9 @@
 
     // Filter out from calendars array
     calendars = calendars.filter(function(c) { return c.id !== calId; });
+
+    // Re-enable add button if under cap
+    document.getElementById('add-calendar-btn').disabled = calendars.length >= MAX_CALENDARS;
 
     updatePreview();
     saveState();
@@ -1419,19 +1428,35 @@
     if (!sheet) return;
 
     function updatePeekText() {
-      var cal = getCal(CAL0);
-      const parts = [];
-      const specIdx = calQ(CAL0, '.spec-select').value;
-      if (specIdx !== '' && indexData && indexData.specs[specIdx]) {
-        const specName = indexData.specs[specIdx].name;
-        parts.push(specName.length > 20 ? specName.substring(0, 20) + '...' : specName);
-      }
-      const yearCode = calQ(CAL0, '.year-select').value;
-      if (yearCode) parts.push(yearCode);
-      if (cal.group) parts.push('G' + cal.group.name);
-      if (cal.subgroup !== 'all') parts.push('/' + cal.subgroup);
+      // Count how many calendars have a spec selected (i.e. are "configured")
+      var configuredCount = calendars.filter(function(c) {
+        var specVal = calQ(c.id, '.spec-select').value;
+        return specVal !== '';
+      }).length;
 
-      peekText.textContent = parts.length ? parts.join(' \u203A ') : 'Select options...';
+      if (configuredCount > 1) {
+        peekText.textContent = configuredCount + ' calendars configured';
+      } else if (configuredCount === 1) {
+        // Show detail for the single configured calendar (may be any id)
+        var configured = calendars.find(function(c) {
+          return calQ(c.id, '.spec-select').value !== '';
+        });
+        var calId = configured.id;
+        var cal = getCal(calId);
+        var parts = [];
+        var specIdx = calQ(calId, '.spec-select').value;
+        if (specIdx !== '' && indexData && indexData.specs[specIdx]) {
+          var specName = indexData.specs[specIdx].name;
+          parts.push(specName.length > 20 ? specName.substring(0, 20) + '...' : specName);
+        }
+        var yearCode = calQ(calId, '.year-select').value;
+        if (yearCode) parts.push(yearCode);
+        if (cal.group) parts.push('G' + cal.group.name);
+        if (cal.subgroup !== 'all') parts.push('/' + cal.subgroup);
+        peekText.textContent = parts.length ? parts.join(' \u203A ') : 'Select options...';
+      } else {
+        peekText.textContent = 'Select options...';
+      }
     }
 
     function expand() {
@@ -1682,6 +1707,13 @@
           pendingRestores--;
           if (pendingRestores === 0) {
             restoring = false;
+            // Collapse all but first accordion so UI isn't overwhelming
+            if (calendars.length > 1) {
+              calendars.forEach(function(c, i) {
+                if (i === 0) expandAccordion(c.id);
+                else collapseAccordion(c.id);
+              });
+            }
             updatePreview();
             saveState(); // migrate v1 → v2 format
           }
@@ -1889,7 +1921,16 @@
       }
       if (specIndex === null) {
         pendingUrlRestores--;
-        if (pendingUrlRestores === 0) { restoring = false; saveState(); }
+        if (pendingUrlRestores === 0) {
+          restoring = false;
+          if (calendars.length > 1) {
+            calendars.forEach(function(c, i) {
+              if (i === 0) expandAccordion(c.id);
+              else collapseAccordion(c.id);
+            });
+          }
+          saveState();
+        }
         return;
       }
 
@@ -1899,6 +1940,13 @@
         pendingUrlRestores--;
         if (pendingUrlRestores === 0) {
           restoring = false;
+          // Collapse all but first accordion so UI isn't overwhelming
+          if (calendars.length > 1) {
+            calendars.forEach(function(c, i) {
+              if (i === 0) expandAccordion(c.id);
+              else collapseAccordion(c.id);
+            });
+          }
           updatePreview();
           saveState();
         }
