@@ -1036,6 +1036,36 @@
     return filterEntries(calId, cal.group, allTypes, excluded);
   }
 
+  function deduplicateEntries(entries) {
+    var seen = {};
+    var result = [];
+    entries.forEach(function(e) {
+      var key = e.day + '-' + e.startHour + '-' + e.endHour + '-' + e.subject + '-' + e.type + '-' + e.formation + '-' + e.room;
+      if (seen[key]) {
+        // Merge calId into existing entry's _calIds
+        if (seen[key]._calIds.indexOf(e._calId) === -1) {
+          seen[key]._calIds.push(e._calId);
+        }
+      } else {
+        e._calIds = [e._calId];
+        seen[key] = e;
+        result.push(e);
+      }
+    });
+    return result;
+  }
+
+  function getAllFilteredEntries() {
+    var all = [];
+    calendars.forEach(function(cal) {
+      if (!cal.group) return;
+      var entries = getFilteredEntries(cal.id);
+      entries.forEach(function(e) { e._calId = cal.id; });
+      all.push.apply(all, entries);
+    });
+    return deduplicateEntries(all);
+  }
+
   function filterByFrequency(entries, freq) {
     if (freq === 'all') return entries;
     return entries.filter(e => e.frequency === 'every' || e.frequency === freq);
@@ -1077,8 +1107,8 @@
   }
 
   function renderScheduleGrid() {
-    var cal = getCal(CAL0);
-    const entries = getFilteredEntries(CAL0);
+    var anyGroup = calendars.some(function(c) { return c.group !== null; });
+    const entries = getAllFilteredEntries();
     const count = entries.reduce((sum, e) => sum + e.dates.length, 0);
     $('#event-count').textContent = count;
     $('#download-btn').disabled = count === 0;
@@ -1089,8 +1119,8 @@
     const grid = $('#schedule-grid');
     const empty = $('#schedule-empty');
 
-    if (!cal.group || filtered.length === 0) {
-      if (!cal.group) {
+    if (!anyGroup || filtered.length === 0) {
+      if (!anyGroup) {
         empty.querySelector('p').textContent = 'Select a specialization, year, and group to see your schedule';
       } else {
         empty.querySelector('p').textContent = 'No events match your current filters';
@@ -1216,7 +1246,8 @@
 
         // Subgroup (own row, only when "Both" selected and event is subgroup-specific)
         let subgroupText = '';
-        if (cal.subgroup === 'all' && ev.formation && ev.formation.includes('/')) {
+        var evCal = getCal(ev._calId);
+        if (evCal.subgroup === 'all' && ev.formation && ev.formation.includes('/')) {
           subgroupText = ev.formation;
           const sgEl = document.createElement('div');
           sgEl.className = 'event-meta';
@@ -1236,7 +1267,11 @@
 
         const roomDisplay = ev.room || 'No room';
         const roomDetail = (ev.room && roomLegend[ev.room]) ? `\n${roomLegend[ev.room]}` : '';
-        const titleText = `${ev.subject}\n${TYPE_LABEL[ev.type] || ev.type} | ${roomDisplay}${roomDetail}${subgroupText ? '\n' + subgroupText : ''}${freqText ? '\n' + freqText : ''}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00`;
+        let calSourceText = '';
+        if (calendars.length > 1 && ev._calIds && ev._calIds.length) {
+          calSourceText = '\n' + ev._calIds.map(function(cid) { return 'Calendar ' + (cid + 1); }).join(', ');
+        }
+        const titleText = `${ev.subject}\n${TYPE_LABEL[ev.type] || ev.type} | ${roomDisplay}${roomDetail}${subgroupText ? '\n' + subgroupText : ''}${freqText ? '\n' + freqText : ''}\n${ev.professor || ''}\n${ev.startHour}:00 - ${ev.endHour}:00${calSourceText}`;
         if ('ontouchstart' in window) el.title = titleText;
         el.dataset.popup = titleText;
 
@@ -1333,7 +1368,10 @@
   }, { passive: true });
 
   function updatePreview() {
-    updateMiniPillsDisabled(CAL0);
+    calendars.forEach(function(cal) {
+      if (cal.group) updateMiniPillsDisabled(cal.id);
+      updateAccordionSummary(cal.id);
+    });
     renderScheduleGrid();
   }
 
@@ -1770,8 +1808,7 @@
   }
 
   $('#download-btn').addEventListener('click', () => {
-    var cal = getCal(CAL0);
-    const entries = getFilteredEntries(CAL0);
+    const entries = getAllFilteredEntries();
     if (!entries.length) return;
 
     const ics = generateICS(entries);
@@ -1780,11 +1817,17 @@
     const a = document.createElement('a');
     a.href = url;
 
-    // Build filename: spec-group-subgroup.ics
-    const code = cal.yearData ? cal.yearData.code : 'schedule';
-    const gName = cal.group.name.replace('/', '-');
-    const sub = cal.subgroup === 'all' ? 'all' : cal.subgroup;
-    a.download = `${code}-${gName}-${sub}.ics`;
+    // Build filename: merged-schedule.ics for multiple calendars, spec-group-subgroup.ics for single
+    const activeCals = calendars.filter(function(c) { return c.group; });
+    if (activeCals.length > 1) {
+      a.download = 'merged-schedule.ics';
+    } else {
+      var cal = activeCals[0] || getCal(CAL0);
+      const code = cal.yearData ? cal.yearData.code : 'schedule';
+      const gName = cal.group ? cal.group.name.replace('/', '-') : 'schedule';
+      const sub = cal.subgroup === 'all' ? 'all' : cal.subgroup;
+      a.download = `${code}-${gName}-${sub}.ics`;
+    }
 
     document.body.appendChild(a);
     a.click();
