@@ -2029,4 +2029,38 @@
     URL.revokeObjectURL(url);
   });
 
+
+  // --- PWA Service Worker ---
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+      // Check for updates
+      reg.addEventListener('updatefound', function() {
+        var newWorker = reg.installing;
+        newWorker.addEventListener('statechange', function() {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version available — show toast
+            var toast = $('#pwa-toast');
+            if (toast) {
+              toast.hidden = false;
+              $('#pwa-toast-refresh').addEventListener('click', function() {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              });
+              $('#pwa-toast-dismiss').addEventListener('click', function() {
+                toast.hidden = true;
+              });
+            }
+          }
+        });
+      });
+    });
+
+    // Reload when new SW takes over
+    var refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
+  }
 })();
