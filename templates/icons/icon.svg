@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Rounded background -->
+  <rect width="512" height="512" rx="96" ry="96" fill="#18181b"/>
+
+  <!-- Timetable grid area: inset 64px on each side = 384x384, starting at (64,64) -->
+  <!-- But we shift grid down to leave room for FMI text at top -->
+
+  <!-- "FMI" text at top -->
+  <text x="256" y="148" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="108" font-weight="800" fill="white" letter-spacing="8">FMI</text>
+
+  <!-- Timetable grid below text -->
+  <!-- Grid area: x=72..440 (368 wide), y=188..440 (252 tall) -->
+  <!-- 3 columns: 72, 194.67, 317.33, 440 -->
+  <!-- 3 rows: 188, 272, 356, 440 -->
+
+  <!-- Grid outer border -->
+  <rect x="72" y="188" width="368" height="252" rx="12" ry="12"
+        fill="none" stroke="white" stroke-width="6" stroke-opacity="0.35"/>
+
+  <!-- Vertical grid lines -->
+  <line x1="194.67" y1="188" x2="194.67" y2="440" stroke="white" stroke-width="4" stroke-opacity="0.2"/>
+  <line x1="317.33" y1="188" x2="317.33" y2="440" stroke="white" stroke-width="4" stroke-opacity="0.2"/>
+
+  <!-- Horizontal grid lines -->
+  <line x1="72" y1="272" x2="440" y2="272" stroke="white" stroke-width="4" stroke-opacity="0.2"/>
+  <line x1="72" y1="356" x2="440" y2="356" stroke="white" stroke-width="4" stroke-opacity="0.2"/>
+
+  <!-- Filled cells to suggest a schedule (varying widths/colors) -->
+  <!-- Row 1, col 1-2 span -->
+  <rect x="82" y="198" width="224" height="64" rx="8" ry="8" fill="white" fill-opacity="0.18"/>
+
+  <!-- Row 1, col 3 -->
+  <rect x="327" y="198" width="103" height="64" rx="8" ry="8" fill="white" fill-opacity="0.30"/>
+
+  <!-- Row 2, col 1 -->
+  <rect x="82" y="282" width="103" height="64" rx="8" ry="8" fill="white" fill-opacity="0.30"/>
+
+  <!-- Row 2, col 2-3 span -->
+  <rect x="204" y="282" width="226" height="64" rx="8" ry="8" fill="white" fill-opacity="0.12"/>
+
+  <!-- Row 3, col 2 -->
+  <rect x="204" y="366" width="103" height="64" rx="8" ry="8" fill="white" fill-opacity="0.25"/>
+
+  <!-- Row 3, col 1 -->
+  <rect x="82" y="366" width="103" height="64" rx="8" ry="8" fill="white" fill-opacity="0.10"/>
+</svg>
