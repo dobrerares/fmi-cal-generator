@@ -3,6 +3,7 @@
 
 import html
 import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
@@ -114,9 +115,30 @@ def main() -> None:
         print("Error: site/ directory not found. Run generate_all.py first.")
         raise SystemExit(1)
 
+    templates_dir = Path(__file__).resolve().parent.parent / "templates"
+
     index_html = generate_index(site_dir)
     (site_dir / "index.html").write_text(index_html, encoding="utf-8")
     print("Generated site/index.html")
+
+    # Copy PWA files
+    for fname in ("sw.js", "manifest.json"):
+        src = templates_dir / fname
+        if src.exists():
+            shutil.copy2(src, site_dir / fname)
+            print(f"Copied {fname}")
+
+    icons_src = templates_dir / "icons"
+    if icons_src.exists():
+        icons_dst = site_dir / "icons"
+        if icons_dst.exists():
+            shutil.rmtree(icons_dst)
+        shutil.copytree(icons_src, icons_dst)
+        # Remove SVG source from output (only PNGs needed)
+        svg = icons_dst / "icon.svg"
+        if svg.exists():
+            svg.unlink()
+        print("Copied icons/")
 
 
 if __name__ == "__main__":
