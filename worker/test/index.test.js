@@ -86,4 +86,20 @@ describe('Worker fetch handler', () => {
     const res = await worker.fetch(req);
     expect(res.status).toBe(404);
   });
+
+  it('returns valid empty ICS on uncaught error with X-Error header', async () => {
+    // Return non-JSON response that passes res.ok but fails JSON.parse
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve(new Response('not json', { status: 200 })),
+    );
+    const c = encode({ s: 'M1', g: 0 });
+    const req = new Request(`https://cal.rdobre.ro/ics?c=${c}`);
+    const res = await worker.fetch(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('X-Error')).toBeTruthy();
+    const body = await res.text();
+    expect(body).toContain('BEGIN:VCALENDAR');
+    expect(body).toContain('END:VCALENDAR');
+    expect(body).not.toContain('BEGIN:VEVENT');
+  });
 });

@@ -25,6 +25,7 @@ export function generateICS(entries, rooms) {
       const sh = String(e.startHour).padStart(2, '0');
       const eh = String(e.endHour).padStart(2, '0');
       lines.push('BEGIN:VEVENT');
+      lines.push(`UID:${d}T${sh}-${e.subject}-${e.type}@fmi-cal`);
       lines.push(`DTSTART;TZID=Europe/Bucharest:${d}T${sh}0000`);
       lines.push(`DTEND;TZID=Europe/Bucharest:${d}T${eh}0000`);
       lines.push(`SUMMARY:${icsEscape(pfx + ' ' + e.subject)}`);

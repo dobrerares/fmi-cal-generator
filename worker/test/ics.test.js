@@ -15,6 +15,7 @@ describe('generateICS', () => {
     expect(ics).toContain('BEGIN:VCALENDAR');
     expect(ics).toContain('END:VCALENDAR');
     expect(ics).toContain('SUMMARY:[C] Algebra');
+    expect(ics).toContain('UID:20260223T08-Algebra-Curs@fmi-cal');
     expect(ics).toContain('DTSTART;TZID=Europe/Bucharest:20260223T080000');
     expect(ics).toContain('DTEND;TZID=Europe/Bucharest:20260223T100000');
     expect(ics).toContain('LOCATION:C510');
