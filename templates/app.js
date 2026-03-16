@@ -2031,21 +2031,52 @@
   });
 
   // --- Calendar Subscription ---
-  $('#subscribe-btn').addEventListener('click', () => {
-    const stateUrl = encodeStateToURL();
-    if (!stateUrl) return;
-    const urlObj = new URL(stateUrl);
-    const c = urlObj.searchParams.get('c');
-    if (!c) return;
+  var subDropdown = $('#subscribe-dropdown');
 
-    const subscribeHttps = 'https://cal.rdobre.ro/ics?c=' + c;
-    const subscribeWebcal = 'webcal://cal.rdobre.ro/ics?c=' + c;
+  function getSubscribeURL() {
+    var stateUrl = encodeStateToURL();
+    if (!stateUrl) return null;
+    var urlObj = new URL(stateUrl);
+    var c = urlObj.searchParams.get('c');
+    if (!c) return null;
+    return 'https://cal.rdobre.ro/ics?c=' + c;
+  }
 
-    // Navigate to webcal:// URL (triggers calendar subscription flow)
-    window.location.href = subscribeWebcal;
+  $('#subscribe-btn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    subDropdown.hidden = !subDropdown.hidden;
+  });
 
-    // Also copy HTTPS URL to clipboard as fallback for manual paste
-    navigator.clipboard.writeText(subscribeHttps).catch(function() {});
+  // Close dropdown on outside click
+  document.addEventListener('click', function() {
+    subDropdown.hidden = true;
+  });
+  subDropdown.addEventListener('click', function(e) {
+    e.stopPropagation();
+  });
+
+  subDropdown.querySelectorAll('.subscribe-dropdown-item').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var url = getSubscribeURL();
+      if (!url) return;
+      var action = btn.dataset.action;
+
+      if (action === 'google') {
+        // Google Calendar subscribe-by-URL page
+        window.open('https://calendar.google.com/calendar/r?cid=' + encodeURIComponent(url), '_blank');
+      } else if (action === 'apple') {
+        // webcal:// triggers iOS/macOS Calendar.app
+        window.location.href = url.replace('https://', 'webcal://');
+      } else if (action === 'copy') {
+        copyToClipboard(url).then(function() {
+          btn.textContent = 'Copied!';
+          setTimeout(function() { btn.textContent = 'Copy URL'; }, 2000);
+        });
+        return; // don't close dropdown on copy
+      }
+
+      subDropdown.hidden = true;
+    });
   });
 
 

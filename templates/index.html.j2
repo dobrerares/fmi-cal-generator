@@ -70,7 +70,14 @@
 
         <div class="schedule-actions">
           <button class="download-btn" id="download-btn" disabled>Download .ics</button>
-          <button class="subscribe-btn" id="subscribe-btn" disabled>Subscribe</button>
+          <span class="subscribe-wrap">
+            <button class="subscribe-btn" id="subscribe-btn" disabled>Subscribe</button>
+            <div class="subscribe-dropdown" id="subscribe-dropdown" hidden>
+              <button class="subscribe-dropdown-item" data-action="google">Google Calendar</button>
+              <button class="subscribe-dropdown-item" data-action="apple">Apple Calendar</button>
+              <button class="subscribe-dropdown-item" data-action="copy">Copy URL</button>
+            </div>
+          </span>
           <button class="share-btn" id="share-btn" disabled>Copy link</button>
         </div>
       </div>
