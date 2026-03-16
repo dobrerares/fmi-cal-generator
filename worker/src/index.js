@@ -3,8 +3,6 @@ import { decodeCalParams } from './decode.js';
 import { filterGroupEntries, filterByFrequency, deduplicateEntries } from './filter.js';
 import { generateICS } from './ics.js';
 
-const ORIGIN = 'https://orar-fmi.rdobre.ro';
-
 async function fetchJSON(url) {
   const res = await fetch(url);
   if (!res.ok) return null;
@@ -12,7 +10,8 @@ async function fetchJSON(url) {
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
+    const ORIGIN = env.ORIGIN_URL || 'https://orar-fmi.rdobre.ro';
     const url = new URL(request.url);
 
     if (url.pathname !== '/ics') {

@@ -48,14 +48,14 @@ describe('Worker fetch handler', () => {
 
   it('returns 400 when ?c= param is missing', async () => {
     const req = new Request('https://cal.rdobre.ro/ics');
-    const res = await worker.fetch(req);
+    const res = await worker.fetch(req, {});
     expect(res.status).toBe(400);
   });
 
   it('returns valid ICS for a single calendar', async () => {
     const c = encode({ s: 'M1', g: 0, sg: '1' });
     const req = new Request(`https://cal.rdobre.ro/ics?c=${c}`);
-    const res = await worker.fetch(req);
+    const res = await worker.fetch(req, {});
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toBe('text/calendar; charset=utf-8');
     const body = await res.text();
@@ -70,20 +70,20 @@ describe('Worker fetch handler', () => {
     globalThis.fetch = mockFetch({});
     const c = encode({ s: 'INVALID', g: 0 });
     const req = new Request(`https://cal.rdobre.ro/ics?c=${c}`);
-    const res = await worker.fetch(req);
+    const res = await worker.fetch(req, {});
     expect(res.status).toBe(502);
   });
 
   it('returns 400 for out-of-bounds group index', async () => {
     const c = encode({ s: 'M1', g: 99 });
     const req = new Request(`https://cal.rdobre.ro/ics?c=${c}`);
-    const res = await worker.fetch(req);
+    const res = await worker.fetch(req, {});
     expect(res.status).toBe(400);
   });
 
   it('returns 404 for non /ics paths', async () => {
     const req = new Request('https://cal.rdobre.ro/other');
-    const res = await worker.fetch(req);
+    const res = await worker.fetch(req, {});
     expect(res.status).toBe(404);
   });
 
@@ -94,7 +94,7 @@ describe('Worker fetch handler', () => {
     );
     const c = encode({ s: 'M1', g: 0 });
     const req = new Request(`https://cal.rdobre.ro/ics?c=${c}`);
-    const res = await worker.fetch(req);
+    const res = await worker.fetch(req, {});
     expect(res.status).toBe(200);
     expect(res.headers.get('X-Error')).toBeTruthy();
     const body = await res.text();
