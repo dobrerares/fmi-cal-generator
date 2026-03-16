@@ -2062,10 +2062,15 @@
       var action = btn.dataset.action;
 
       if (action === 'google') {
-        // Google Calendar subscribe-by-URL page
-        window.open('https://calendar.google.com/calendar/r?cid=' + encodeURIComponent(url), '_blank');
-      } else if (action === 'apple') {
-        // webcal:// triggers iOS/macOS Calendar.app
+        // Copy URL then open Google Calendar's "add by URL" page
+        copyToClipboard(url).then(function() {
+          window.open('https://calendar.google.com/calendar/u/0/r/settings/addbyurl', '_blank');
+        });
+      } else if (action === 'outlook') {
+        // Outlook web subscribe
+        window.open('https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(url), '_blank');
+      } else if (action === 'webcal') {
+        // webcal:// for native calendar apps (iOS/macOS Calendar, Thunderbird, etc.)
         window.location.href = url.replace('https://', 'webcal://');
       } else if (action === 'copy') {
         copyToClipboard(url).then(function() {
