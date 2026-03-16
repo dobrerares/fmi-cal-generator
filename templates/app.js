@@ -2041,10 +2041,10 @@
     const subscribeHttps = 'https://cal.rdobre.ro/ics?c=' + c;
     const subscribeWebcal = 'webcal://cal.rdobre.ro/ics?c=' + c;
 
-    // Try webcal:// first (opens native calendar subscription flow)
-    window.open(subscribeWebcal, '_self');
+    // Navigate to webcal:// URL (triggers calendar subscription flow)
+    window.location.href = subscribeWebcal;
 
-    // Also copy HTTPS URL to clipboard as fallback
+    // Also copy HTTPS URL to clipboard as fallback for manual paste
     navigator.clipboard.writeText(subscribeHttps).catch(function() {});
   });
 
