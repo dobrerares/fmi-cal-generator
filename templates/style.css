@@ -685,6 +685,7 @@ h1 {
 }
 
 .download-btn,
+.subscribe-btn,
 .share-btn {
   display: inline-flex;
   align-items: center;
@@ -701,15 +702,18 @@ h1 {
   transition: background-color 0.2s, border-color 0.2s, opacity 0.2s;
 }
 .download-btn:hover:not(:disabled),
+.subscribe-btn:hover:not(:disabled),
 .share-btn:hover:not(:disabled) {
   background: var(--accent);
 }
 .download-btn:disabled,
+.subscribe-btn:disabled,
 .share-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 .download-btn:focus-visible,
+.subscribe-btn:focus-visible,
 .share-btn:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--ring);

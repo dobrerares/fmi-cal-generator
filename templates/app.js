@@ -1132,6 +1132,7 @@
     const count = entries.reduce((sum, e) => sum + e.dates.length, 0);
     $('#event-count').textContent = count;
     $('#download-btn').disabled = count === 0;
+    $('#subscribe-btn').disabled = count === 0;
     $('#share-btn').disabled = count === 0;
 
     const filtered = filterByFrequency(entries, selectedFreq);
@@ -2027,6 +2028,24 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  });
+
+  // --- Calendar Subscription ---
+  $('#subscribe-btn').addEventListener('click', () => {
+    const stateUrl = encodeStateToURL();
+    if (!stateUrl) return;
+    const urlObj = new URL(stateUrl);
+    const c = urlObj.searchParams.get('c');
+    if (!c) return;
+
+    const subscribeHttps = 'https://cal.rdobre.ro/ics?c=' + c;
+    const subscribeWebcal = 'webcal://cal.rdobre.ro/ics?c=' + c;
+
+    // Try webcal:// first (opens native calendar subscription flow)
+    window.open(subscribeWebcal, '_self');
+
+    // Also copy HTTPS URL to clipboard as fallback
+    navigator.clipboard.writeText(subscribeHttps).catch(function() {});
   });
 
 
