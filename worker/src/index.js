@@ -4,7 +4,7 @@ import { filterGroupEntries, filterByFrequency, deduplicateEntries } from './fil
 import { generateICS } from './ics.js';
 
 async function fetchJSON(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { redirect: 'follow' });
   if (!res.ok) return null;
   return res.json();
 }
