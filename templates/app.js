@@ -2061,17 +2061,17 @@
       if (!url) return;
       var action = btn.dataset.action;
 
+      var webcalUrl = url.replace('https://', 'webcal://');
+
       if (action === 'google') {
-        // Copy URL then open Google Calendar's "add by URL" page
-        copyToClipboard(url).then(function() {
-          window.open('https://calendar.google.com/calendar/u/0/r/settings/addbyurl', '_blank');
-        });
+        // Google Calendar requires webcal:// in the cid param, not https://
+        window.open('https://calendar.google.com/calendar/render?cid=' + webcalUrl, '_blank');
       } else if (action === 'outlook') {
         // Outlook web subscribe
         window.open('https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(url), '_blank');
       } else if (action === 'webcal') {
         // webcal:// for native calendar apps (iOS/macOS Calendar, Thunderbird, etc.)
-        window.location.href = url.replace('https://', 'webcal://');
+        window.location.href = webcalUrl;
       } else if (action === 'copy') {
         copyToClipboard(url).then(function() {
           btn.textContent = 'Copied!';
