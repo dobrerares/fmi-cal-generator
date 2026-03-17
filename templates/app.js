@@ -82,9 +82,9 @@
     for (var i = 0; i < weeks.length; i++) {
       var parts = weeks[i].monday.split('-');
       var monday = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-      var friday = new Date(monday);
-      friday.setDate(friday.getDate() + 4);
-      if (today >= monday && today <= friday) {
+      var sunday = new Date(monday);
+      sunday.setDate(sunday.getDate() + 6);
+      if (today >= monday && today <= sunday) {
         return weeks[i].week % 2 === 1 ? 'sapt. 1' : 'sapt. 2';
       }
     }
@@ -1103,10 +1103,10 @@
     return deduplicateEntries(all);
   }
 
-  function filterByFrequency(entries, freq) {
+  function filterByFrequency(entries, freq, cachedResolved) {
     if (freq === 'all') return entries;
     if (freq === 'current') {
-      var resolved = resolveCurrentWeek();
+      var resolved = cachedResolved !== undefined ? cachedResolved : resolveCurrentWeek();
       if (!resolved) return entries; // not a teaching week — show all
       return entries.filter(e => e.frequency === 'every' || e.frequency === resolved);
     }
@@ -1157,11 +1157,12 @@
     $('#subscribe-btn').disabled = count === 0;
     $('#share-btn').disabled = count === 0;
 
-    const filtered = filterByFrequency(entries, selectedFreq);
+    var currentWeekResolved = selectedFreq === 'current' ? resolveCurrentWeek() : null;
+    const filtered = filterByFrequency(entries, selectedFreq, currentWeekResolved);
 
     // Non-teaching week banner
     var bannerEl = document.getElementById('non-teaching-banner');
-    if (selectedFreq === 'current' && resolveCurrentWeek() === null) {
+    if (selectedFreq === 'current' && currentWeekResolved === null) {
       if (!bannerEl) {
         bannerEl = document.createElement('div');
         bannerEl.id = 'non-teaching-banner';
@@ -1759,7 +1760,7 @@
       restoring = true;
 
       // Restore global frequency
-      if (saved.freq && saved.freq !== 'all') {
+      if (saved.freq) {
         selectedFreq = saved.freq;
         var freqRadio = $('#freq-toggle input[value="' + saved.freq + '"]');
         if (freqRadio) freqRadio.checked = true;
@@ -1835,11 +1836,11 @@
     if (calStates.length === 1) {
       // Single calendar: flat format for backward compatibility
       payload = calStates[0];
-      if (selectedFreq !== 'all') payload.f = selectedFreq;
+      payload.f = selectedFreq;
     } else {
       // Multi-calendar: { cals: [...], f: freq }
       payload = { cals: calStates };
-      if (selectedFreq !== 'all') payload.f = selectedFreq;
+      payload.f = selectedFreq;
     }
 
     var json = JSON.stringify(payload);
@@ -1958,7 +1959,7 @@
     restoring = true;
 
     // Apply global frequency
-    if (decoded.freq && decoded.freq !== 'all') {
+    if (decoded.freq) {
       selectedFreq = decoded.freq;
       var freqRadio = $('#freq-toggle input[value="' + decoded.freq + '"]');
       if (freqRadio) freqRadio.checked = true;
