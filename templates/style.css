@@ -1282,16 +1282,27 @@ footer {
   visibility: visible;
 }
 
+.non-teaching-banner {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  text-align: center;
+}
+
 /* --- Mobile --- */
 @media (max-width: 768px) {
   body {
     padding: 1rem 0.75rem;
-    padding-bottom: 5rem;
+    padding-bottom: 4rem;
   }
   h1 { font-size: 1.4rem; }
+  .subtitle { display: none; }
+  .header { margin-bottom: 0.75rem; }
   .pill-group { gap: 0.35rem; }
   .pill-group span { padding: 0.5rem; font-size: 0.8125rem; }
-  .tabs { gap: 1rem; }
+  .tabs { gap: 1rem; margin-bottom: 0.75rem; }
   .card { padding: 1rem; }
 
   .app-layout {
@@ -1305,6 +1316,7 @@ footer {
   .schedule-panel {
     position: static;
     max-height: none;
+    gap: 0.375rem;
   }
 
   .day-tabs {
@@ -1315,7 +1327,10 @@ footer {
     display: block;
   }
 
+  .schedule-actions { display: none; }
+
   .schedule-grid {
+    --hour-height: 1.75rem;
     grid-template-columns: 3rem 1fr;
   }
 
@@ -1328,7 +1343,8 @@ footer {
   }
 
   .schedule-event {
-    font-size: 0.8125rem;
+    font-size: 0.6875rem;
+    padding: 0.125rem 0.25rem;
   }
 
   .schedule-grid-wrapper {
