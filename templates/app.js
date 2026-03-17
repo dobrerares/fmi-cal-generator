@@ -29,7 +29,7 @@
   // --- State ---
   let indexData = null;   // { specs: [{ name, years: [{year,code}] }] }
   let restoring = false;
-  let selectedFreq = 'all';
+  let selectedFreq = 'current';
   let selectedMobileDay = 'Luni';
   let roomLegend = {};  // { roomCode: "Full location string" }
 
@@ -73,6 +73,23 @@
   const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
   const GRID_START = 8;
   const GRID_END = 20;
+
+  function resolveCurrentWeek() {
+    var weeks = window.__teachingWeeks;
+    if (!weeks || !weeks.length) return null;
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (var i = 0; i < weeks.length; i++) {
+      var parts = weeks[i].monday.split('-');
+      var monday = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      var friday = new Date(monday);
+      friday.setDate(friday.getDate() + 4);
+      if (today >= monday && today <= friday) {
+        return weeks[i].week % 2 === 1 ? 'sapt. 1' : 'sapt. 2';
+      }
+    }
+    return null;
+  }
 
   const $ = s => document.querySelector(s);
   const $$ = s => document.querySelectorAll(s);
@@ -1088,6 +1105,11 @@
 
   function filterByFrequency(entries, freq) {
     if (freq === 'all') return entries;
+    if (freq === 'current') {
+      var resolved = resolveCurrentWeek();
+      if (!resolved) return entries; // not a teaching week — show all
+      return entries.filter(e => e.frequency === 'every' || e.frequency === resolved);
+    }
     return entries.filter(e => e.frequency === 'every' || e.frequency === freq);
   }
 
@@ -1136,6 +1158,21 @@
     $('#share-btn').disabled = count === 0;
 
     const filtered = filterByFrequency(entries, selectedFreq);
+
+    // Non-teaching week banner
+    var bannerEl = document.getElementById('non-teaching-banner');
+    if (selectedFreq === 'current' && resolveCurrentWeek() === null) {
+      if (!bannerEl) {
+        bannerEl = document.createElement('div');
+        bannerEl.id = 'non-teaching-banner';
+        bannerEl.className = 'non-teaching-banner';
+        bannerEl.textContent = 'Not a teaching week \u2014 showing all events';
+        var gridWrapper = document.getElementById('schedule-grid-wrapper');
+        gridWrapper.parentNode.insertBefore(bannerEl, gridWrapper);
+      }
+    } else if (bannerEl) {
+      bannerEl.remove();
+    }
 
     const grid = $('#schedule-grid');
     const empty = $('#schedule-empty');
@@ -1281,7 +1318,7 @@
 
         // Frequency (own row, only when viewing "All" and event is not every-week)
         let freqText = '';
-        if (selectedFreq === 'all' && ev.frequency && ev.frequency !== 'every') {
+        if ((selectedFreq === 'all' || selectedFreq === 'current') && ev.frequency && ev.frequency !== 'every') {
           freqText = ev.frequency === 'sapt. 1' ? 'Week 1' : 'Week 2';
           const freqEl = document.createElement('div');
           freqEl.className = 'event-meta';
@@ -1475,6 +1512,12 @@
         if (calContainer) content.appendChild(calContainer);
         if (addBtn) content.appendChild(addBtn);
       }
+      // Move schedule actions into bottom sheet on mobile
+      var actions = document.querySelector('.schedule-actions');
+      if (actions && !content.contains(actions)) {
+        content.appendChild(actions);
+        actions.style.display = 'flex';
+      }
     }
 
     function collapse() {
@@ -1491,6 +1534,15 @@
           var addBtn = content.querySelector('#add-calendar-btn');
           if (calContainer) panel.appendChild(calContainer);
           if (addBtn) panel.appendChild(addBtn);
+        }
+        // Move schedule actions back to schedule panel
+        var actions = content.querySelector('.schedule-actions');
+        if (actions) {
+          var schedulePanel = document.getElementById('schedule-panel');
+          if (schedulePanel) {
+            schedulePanel.appendChild(actions);
+            actions.style.display = '';
+          }
         }
       }
       sheet.addEventListener('transitionend', onDone);
@@ -1527,6 +1579,18 @@
   }
 
   initBottomSheet();
+
+  // Auto-select current day on mobile
+  (function() {
+    if (window.innerWidth > 768) return;
+    var jsDay = new Date().getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    var dayMap = { 1: 'Luni', 2: 'Marti', 3: 'Miercuri', 4: 'Joi', 5: 'Vineri' };
+    var today = dayMap[jsDay] || 'Luni'; // weekends default to Monday
+    selectedMobileDay = today;
+    document.querySelectorAll('.day-tab').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.day === today);
+    });
+  })();
 
   // --- Persistence ---
   function syncCalStateFromDOM(calId) {
