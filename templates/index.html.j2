@@ -46,7 +46,8 @@
             <span class="event-label-inline">events</span>
           </div>
           <div class="freq-toggle pill-group" id="freq-toggle">
-            <label><input type="radio" name="freq" value="all" checked><span>All</span></label>
+            <label><input type="radio" name="freq" value="current" checked><span>Current</span></label>
+            <label><input type="radio" name="freq" value="all"><span>All</span></label>
             <label><input type="radio" name="freq" value="sapt. 1"><span>Week 1</span></label>
             <label><input type="radio" name="freq" value="sapt. 2"><span>Week 2</span></label>
           </div>
@@ -128,6 +129,7 @@
     <a href="https://github.com/dobrerares/fmi-cal-generator">Source on GitHub</a>
   </footer>
 
+  <script>window.__teachingWeeks={{ teaching_weeks_json }};window.__holidays={{ holidays_json }};</script>
   <script>{{ js }}</script>
 </body>
 </html>

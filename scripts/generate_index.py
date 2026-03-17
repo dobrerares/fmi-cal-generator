@@ -2,13 +2,20 @@
 """Generate a static index.html with a custom calendar builder + quick download tree."""
 
 import html
+import json
 import re
 import shutil
+import sys
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
 
 from jinja2 import Environment, FileSystemLoader
+
+# Add src to path so we can import fmi_cal
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from fmi_cal.academic import compute_teaching_weeks, fetch_academic_calendar
 
 
 def natural_sort_key(s: str):
@@ -96,6 +103,19 @@ def generate_index(site_dir: Path) -> str:
     download_tree, total_files = build_download_tree(site_dir)
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    # Fetch academic calendar data for teaching weeks / holidays
+    try:
+        calendar = fetch_academic_calendar()
+        weeks = compute_teaching_weeks(calendar)
+        teaching_weeks_json = json.dumps(
+            [{"monday": str(monday), "week": week_num} for monday, week_num in weeks]
+        )
+        holidays_json = json.dumps([str(d) for d in calendar.holidays])
+    except Exception as exc:
+        print(f"Warning: could not fetch academic calendar ({exc}); using empty data")
+        teaching_weeks_json = "[]"
+        holidays_json = "[]"
+
     templates_dir = Path(__file__).resolve().parent.parent / "templates"
     env = Environment(loader=FileSystemLoader(templates_dir))
     template = env.get_template("index.html.j2")
@@ -106,6 +126,8 @@ def generate_index(site_dir: Path) -> str:
         file_tree_html=download_tree,
         generated_date=now,
         total_files=total_files,
+        teaching_weeks_json=teaching_weeks_json,
+        holidays_json=holidays_json,
     )
 
 
