@@ -2129,14 +2129,8 @@
       var webcalUrl = url.replace('https://', 'webcal://');
 
       if (action === 'google') {
-        // Google Calendar's cid= param is unreliable with query-string ICS URLs;
-        // copy URL + open "Add by URL" settings page instead
-        copyToClipboard(url).then(function() {
-          btn.textContent = 'URL copied! Paste it in the field';
-          setTimeout(function() { btn.textContent = 'Google Calendar'; }, 4000);
-          window.open('https://calendar.google.com/calendar/r/settings/addbyurl', '_blank');
-        });
-        return; // don't close dropdown — show copied feedback
+        // webcal:// protocol tells Google Calendar to subscribe (not one-time import)
+        window.open('https://calendar.google.com/calendar/render?cid=' + encodeURIComponent(webcalUrl), '_blank');
       } else if (action === 'outlook') {
         // Outlook web subscribe
         window.open('https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(url), '_blank');

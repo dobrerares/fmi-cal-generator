@@ -1,5 +1,27 @@
 // worker/src/ics.js
 
+// Europe/Bucharest timezone definition (EET/EEST)
+// RFC 5545 §3.6.5: VTIMEZONE MUST be specified for each TZID referenced
+const VTIMEZONE_BUCHAREST = [
+  'BEGIN:VTIMEZONE',
+  'TZID:Europe/Bucharest',
+  'BEGIN:STANDARD',
+  'DTSTART:19701025T040000',
+  'RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10',
+  'TZOFFSETFROM:+0300',
+  'TZOFFSETTO:+0200',
+  'TZNAME:EET',
+  'END:STANDARD',
+  'BEGIN:DAYLIGHT',
+  'DTSTART:19700329T030000',
+  'RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3',
+  'TZOFFSETFROM:+0200',
+  'TZOFFSETTO:+0300',
+  'TZNAME:EEST',
+  'END:DAYLIGHT',
+  'END:VTIMEZONE',
+];
+
 function icsEscape(s) {
   return s
     .replace(/\\/g, '\\\\')
@@ -9,13 +31,37 @@ function icsEscape(s) {
 }
 
 // RFC 5545 §3.1: lines SHOULD NOT exceed 75 octets; fold with CRLF + space
+// Counts UTF-8 bytes (not JS characters) and avoids splitting multi-byte sequences
 function icsFold(line) {
-  if (line.length <= 75) return line;
-  const parts = [line.slice(0, 75)];
-  for (let i = 75; i < line.length; i += 74) {
-    parts.push(' ' + line.slice(i, i + 74));
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(line);
+  if (bytes.length <= 75) return line;
+
+  const parts = [];
+  let offset = 0;
+  let isFirst = true;
+
+  while (offset < bytes.length) {
+    const limit = isFirst ? 75 : 74; // continuation lines have a leading space
+    isFirst = false;
+
+    if (offset + limit >= bytes.length) {
+      parts.push(new TextDecoder().decode(bytes.slice(offset)));
+      break;
+    }
+
+    // Back up if we're in the middle of a UTF-8 multi-byte sequence
+    // Continuation bytes have the form 10xxxxxx (0x80–0xBF)
+    let splitAt = offset + limit;
+    while (splitAt > offset && (bytes[splitAt] & 0xc0) === 0x80) {
+      splitAt--;
+    }
+
+    parts.push(new TextDecoder().decode(bytes.slice(offset, splitAt)));
+    offset = splitAt;
   }
-  return parts.join('\r\n');
+
+  return parts.join('\r\n ');
 }
 
 export function generateICS(entries, rooms) {
@@ -34,9 +80,11 @@ export function generateICS(entries, rooms) {
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//FMI Cal Generator//UBB Cluj//RO',
+    'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'X-WR-CALNAME:FMI Schedule',
     'X-WR-TIMEZONE:Europe/Bucharest',
+    ...VTIMEZONE_BUCHAREST,
   ];
 
   for (const e of entries) {
@@ -58,10 +106,11 @@ export function generateICS(entries, rooms) {
         lines.push(icsFold(`LOCATION:${icsEscape(loc)}`));
       }
       if (e.professor) lines.push(icsFold(`DESCRIPTION:${icsEscape(e.professor)}`));
+      lines.push('SEQUENCE:0');
       lines.push('END:VEVENT');
     }
   }
 
   lines.push('END:VCALENDAR');
-  return lines.join('\r\n');
+  return lines.join('\r\n') + '\r\n';
 }
