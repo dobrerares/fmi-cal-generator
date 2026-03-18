@@ -61,6 +61,27 @@ async function handleConfig(request, env) {
   }
 }
 
+async function handleConfigGet(pathname, env) {
+  const id = decodeURIComponent(pathname.slice('/config/'.length));
+  if (!/^[0-9a-f]{10}$/.test(id)) {
+    return new Response(JSON.stringify({ error: 'Invalid config ID' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    });
+  }
+  const json = await env.CAL_CONFIGS.get(id);
+  if (!json) {
+    return new Response(JSON.stringify({ error: 'Config not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    });
+  }
+  return new Response(json, {
+    status: 200,
+    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+  });
+}
+
 async function resolveParams(pathname, searchParams, env) {
   // Path-based: /ics/<id-or-base64url>.ics
   if (pathname.startsWith('/ics/')) {
@@ -157,6 +178,11 @@ export default {
 
     if (url.pathname === '/config') {
       return handleConfig(request, env);
+    }
+
+    // GET /config/<hash> — retrieve stored config for short share URLs
+    if (url.pathname.startsWith('/config/')) {
+      return handleConfigGet(url.pathname, env);
     }
 
     return handleICS(request, env);

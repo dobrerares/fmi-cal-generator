@@ -1836,16 +1836,30 @@
     if (calStates.length === 1) {
       // Single calendar: flat format for backward compatibility
       payload = calStates[0];
-      payload.f = 'all';
+      payload.f = selectedFreq;
     } else {
       // Multi-calendar: { cals: [...], f: freq }
       payload = { cals: calStates };
-      payload.f = 'all';
+      payload.f = selectedFreq;
     }
 
+    return payload;
+  }
+
+  function encodeStateToURL() {
+    var payload = buildStatePayload();
+    if (!payload) return;
     var json = JSON.stringify(payload);
     var b64 = btoa(unescape(encodeURIComponent(json)));
     return window.location.origin + window.location.pathname + '?c=' + encodeURIComponent(b64);
+  }
+
+  function postConfig(json) {
+    return fetch('https://cal.rdobre.ro/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: json
+    }).then(function(res) { return res.json(); });
   }
 
   function decodeCalState(obj) {
@@ -1927,21 +1941,34 @@
     return Promise.resolve();
   }
 
-  $('#share-btn').addEventListener('click', () => {
-    const url = encodeStateToURL();
-    if (!url) return;
+  $('#share-btn').addEventListener('click', function() {
+    var payload = buildStatePayload();
+    if (!payload) return;
+    var btn = $('#share-btn');
+    var orig = btn.textContent;
+    btn.textContent = 'Loading...';
 
-    copyToClipboard(url).then(() => {
-      const btn = $('#share-btn');
-      const orig = btn.textContent;
-      btn.textContent = 'Copied!';
-      setTimeout(() => { btn.textContent = orig; }, 2000);
-    });
+    var json = JSON.stringify(payload);
+    postConfig(json)
+      .then(function(data) {
+        var shortUrl = window.location.origin + window.location.pathname + '?id=' + data.id;
+        return copyToClipboard(shortUrl);
+      })
+      .then(function() {
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = orig; }, 2000);
+      })
+      .catch(function() {
+        // Fallback to long ?c= URL
+        var url = encodeStateToURL();
+        if (url) copyToClipboard(url);
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = orig; }, 2000);
+      });
   });
 
   // Restore from URL (takes priority over localStorage)
-  function restoreFromURL() {
-    var decoded = decodeStateFromURL();
+  function applyDecodedState(decoded) {
     if (!decoded || !decoded.calStates || !decoded.calStates.length || !indexData) return false;
     decoded.calStates = decoded.calStates.slice(0, MAX_CALENDARS);
 
@@ -2029,6 +2056,44 @@
     return true;
   }
 
+  function restoreFromURL() {
+    var params = new URLSearchParams(window.location.search);
+
+    // Short KV-backed URL: ?id=<hash>
+    if (params.has('id')) {
+      var id = params.get('id');
+      fetch('https://cal.rdobre.ro/config/' + encodeURIComponent(id))
+        .then(function(res) {
+          if (!res.ok) throw new Error('Config not found');
+          return res.json();
+        })
+        .then(function(state) {
+          var decoded = decodeConfigPayload(state);
+          applyDecodedState(decoded);
+        })
+        .catch(function() {});
+      return true; // signal that URL restore is in progress
+    }
+
+    return applyDecodedState(decodeStateFromURL());
+  }
+
+  function decodeConfigPayload(state) {
+    if (Array.isArray(state.cals)) {
+      return {
+        calStates: state.cals.map(decodeCalState),
+        freq: state.f || 'all',
+      };
+    }
+    if (state.s) {
+      return {
+        calStates: [decodeCalState(state)],
+        freq: state.f || 'all',
+      };
+    }
+    return null;
+  }
+
   // --- ICS generation ---
   function icsEscape(s) {
     return s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
@@ -2099,24 +2164,18 @@
   var subDropdown = $('#subscribe-dropdown');
 
   function getSubscribeURL() {
-    var stateUrl = encodeStateToURL();
-    if (!stateUrl) return Promise.resolve(null);
-    var urlObj = new URL(stateUrl);
-    var c = urlObj.searchParams.get('c');
-    if (!c) return Promise.resolve(null);
+    var payload = buildStatePayload();
+    if (!payload) return Promise.resolve(null);
+    // ICS feed should always contain all events regardless of display filter
+    payload.f = 'all';
+    var json = JSON.stringify(payload);
 
-    // Decode the base64 payload back to JSON and POST to /config for a short KV URL
-    var json = decodeURIComponent(escape(atob(c)));
-    return fetch('https://cal.rdobre.ro/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: json
-    })
-      .then(function(res) { return res.json(); })
+    return postConfig(json)
       .then(function(data) { return data.url; })
       .catch(function() {
         // Fallback to base64url path if KV fails
-        var b64url = c.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        var b64 = btoa(unescape(encodeURIComponent(json)));
+        var b64url = b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
         return 'https://cal.rdobre.ro/ics/' + b64url + '.ics';
       });
   }

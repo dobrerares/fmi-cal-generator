@@ -191,6 +191,35 @@ describe('POST /config', () => {
   });
 });
 
+describe('GET /config/:id', () => {
+  it('returns stored config JSON', async () => {
+    const payload = { s: 'M1', g: 0, sg: '1' };
+    const json = JSON.stringify(payload);
+    const kv = mockKV({ 'abc1234567': json });
+    const req = new Request('https://cal.rdobre.ro/config/abc1234567');
+    const res = await worker.fetch(req, { CAL_CONFIGS: kv });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('application/json');
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    const data = await res.json();
+    expect(data).toEqual(payload);
+  });
+
+  it('returns 404 for unknown ID', async () => {
+    const kv = mockKV();
+    const req = new Request('https://cal.rdobre.ro/config/0000000000');
+    const res = await worker.fetch(req, { CAL_CONFIGS: kv });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 for invalid ID format', async () => {
+    const kv = mockKV();
+    const req = new Request('https://cal.rdobre.ro/config/not-valid');
+    const res = await worker.fetch(req, { CAL_CONFIGS: kv });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('KV-based /ics/:id route', () => {
   let originalFetch;
 
