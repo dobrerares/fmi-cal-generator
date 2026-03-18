@@ -14,20 +14,28 @@ export default {
     const ORIGIN = env.ORIGIN_URL || 'https://orar-fmi.rdobre.ro';
     const url = new URL(request.url);
 
-    if (url.pathname !== '/ics') {
+    // Support both path-based (/ics/BASE64URL) and query-based (/ics?c=BASE64)
+    let b64;
+    if (url.pathname.startsWith('/ics/')) {
+      // Path-based: base64url in the path segment
+      const b64url = decodeURIComponent(url.pathname.slice(5));
+      b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+    } else if (url.pathname === '/ics') {
+      b64 = url.searchParams.get('c');
+    } else {
       return new Response('Not found', { status: 404 });
     }
 
-    const c = url.searchParams.get('c');
-    if (!c) {
-      return new Response('Missing ?c= parameter', { status: 400 });
+    if (!b64) {
+      return new Response('Missing calendar parameter', { status: 400 });
     }
 
     let params;
     try {
-      params = decodeCalParams(c);
+      params = decodeCalParams(b64);
     } catch (e) {
-      return new Response(`Invalid ?c= parameter: ${e.message}`, { status: 400 });
+      return new Response(`Invalid calendar parameter: ${e.message}`, { status: 400 });
     }
 
     try {

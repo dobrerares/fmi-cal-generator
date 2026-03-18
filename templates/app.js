@@ -2104,7 +2104,9 @@
     var urlObj = new URL(stateUrl);
     var c = urlObj.searchParams.get('c');
     if (!c) return null;
-    return 'https://cal.rdobre.ro/ics?c=' + encodeURIComponent(c);
+    // Convert standard base64 to base64url (URL-safe, no query params needed)
+    var b64url = c.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return 'https://cal.rdobre.ro/ics/' + b64url;
   }
 
   $('#subscribe-btn').addEventListener('click', function(e) {
@@ -2129,8 +2131,8 @@
       var webcalUrl = url.replace('https://', 'webcal://');
 
       if (action === 'google') {
-        // webcal:// protocol tells Google Calendar to subscribe (not one-time import)
-        window.open('https://calendar.google.com/calendar/render?cid=' + encodeURIComponent(webcalUrl), '_blank');
+        // Path-based URL has no query params, so cid= works without encoding issues
+        window.open('https://calendar.google.com/calendar/render?cid=' + webcalUrl, '_blank');
       } else if (action === 'outlook') {
         // Outlook web subscribe
         window.open('https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(url), '_blank');

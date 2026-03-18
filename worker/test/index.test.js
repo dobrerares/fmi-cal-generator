@@ -17,6 +17,10 @@ function encode(obj) {
   return btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
 }
 
+function encodeB64url(obj) {
+  return encode(obj).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 const ORIGIN = 'https://orar-fmi.rdobre.ro';
 
 const MOCK_DATA = {
@@ -79,6 +83,19 @@ describe('Worker fetch handler', () => {
     const req = new Request(`https://cal.rdobre.ro/ics?c=${c}`);
     const res = await worker.fetch(req, {});
     expect(res.status).toBe(400);
+  });
+
+  it('returns valid ICS via path-based base64url route', async () => {
+    const b64url = encodeB64url({ s: 'M1', g: 0, sg: '1' });
+    const req = new Request(`https://cal.rdobre.ro/ics/${b64url}`);
+    const res = await worker.fetch(req, {});
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('text/calendar; charset=utf-8');
+    const body = await res.text();
+    expect(body).toContain('BEGIN:VCALENDAR');
+    expect(body).toContain('Algebra');
+    expect(body).toContain('L001');
+    expect(body).not.toContain('L002');
   });
 
   it('returns 404 for non /ics paths', async () => {
