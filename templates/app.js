@@ -2100,13 +2100,25 @@
 
   function getSubscribeURL() {
     var stateUrl = encodeStateToURL();
-    if (!stateUrl) return null;
+    if (!stateUrl) return Promise.resolve(null);
     var urlObj = new URL(stateUrl);
     var c = urlObj.searchParams.get('c');
-    if (!c) return null;
-    // Convert standard base64 to base64url (URL-safe, no query params needed)
-    var b64url = c.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    return 'https://cal.rdobre.ro/ics/' + b64url + '.ics';
+    if (!c) return Promise.resolve(null);
+
+    // Decode the base64 payload back to JSON and POST to /config for a short KV URL
+    var json = decodeURIComponent(escape(atob(c)));
+    return fetch('https://cal.rdobre.ro/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: json
+    })
+      .then(function(res) { return res.json(); })
+      .then(function(data) { return data.url; })
+      .catch(function() {
+        // Fallback to base64url path if KV fails
+        var b64url = c.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        return 'https://cal.rdobre.ro/ics/' + b64url + '.ics';
+      });
   }
 
   $('#subscribe-btn').addEventListener('click', function(e) {
@@ -2124,30 +2136,32 @@
 
   subDropdown.querySelectorAll('.subscribe-dropdown-item').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      var url = getSubscribeURL();
-      if (!url) return;
       var action = btn.dataset.action;
+      var origText = btn.textContent;
+      btn.textContent = 'Loading...';
 
-      var webcalUrl = url.replace('https://', 'webcal://');
+      getSubscribeURL().then(function(url) {
+        btn.textContent = origText;
+        if (!url) return;
 
-      if (action === 'google') {
-        // Path-based URL has no query params, so cid= works without encoding issues
-        window.open('https://calendar.google.com/calendar/render?cid=' + webcalUrl, '_blank');
-      } else if (action === 'outlook') {
-        // Outlook web subscribe
-        window.open('https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(url), '_blank');
-      } else if (action === 'webcal') {
-        // webcal:// for native calendar apps (iOS/macOS Calendar, Thunderbird, etc.)
-        window.location.href = webcalUrl;
-      } else if (action === 'copy') {
-        copyToClipboard(url).then(function() {
-          btn.textContent = 'Copied!';
-          setTimeout(function() { btn.textContent = 'Copy URL'; }, 2000);
-        });
-        return; // don't close dropdown on copy
-      }
+        var webcalUrl = url.replace('https://', 'webcal://');
 
-      subDropdown.hidden = true;
+        if (action === 'google') {
+          window.open('https://calendar.google.com/calendar/render?cid=' + webcalUrl, '_blank');
+        } else if (action === 'outlook') {
+          window.open('https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(url), '_blank');
+        } else if (action === 'webcal') {
+          window.location.href = webcalUrl;
+        } else if (action === 'copy') {
+          copyToClipboard(url).then(function() {
+            btn.textContent = 'Copied!';
+            setTimeout(function() { btn.textContent = origText; }, 2000);
+          });
+          return; // don't close dropdown on copy
+        }
+
+        subDropdown.hidden = true;
+      });
     });
   });
 

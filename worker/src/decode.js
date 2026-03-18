@@ -1,7 +1,6 @@
 // worker/src/decode.js
-export function decodeCalParams(b64) {
-  const json = decodeURIComponent(escape(atob(b64)));
-  const payload = JSON.parse(json);
+export function decodeCalParams(b64, preParsed) {
+  const payload = preParsed || JSON.parse(decodeURIComponent(escape(atob(b64))));
 
   let rawCals;
   let freq = 'all';
