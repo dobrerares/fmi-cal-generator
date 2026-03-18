@@ -17,6 +17,11 @@ describe('generateICS', () => {
     expect(ics).toContain('CALSCALE:GREGORIAN');
     expect(ics).toContain('SUMMARY:[C] Algebra');
     expect(ics).toContain('UID:20260223T08-Algebra-Curs@fmi-cal');
+    // UIDs must not contain spaces
+    const uids = ics.match(/^UID:.+$/gm) || [];
+    for (const uid of uids) {
+      expect(uid).not.toMatch(/ /);
+    }
     expect(ics).toContain('DTSTART;TZID=Europe/Bucharest:20260223T080000');
     expect(ics).toContain('DTEND;TZID=Europe/Bucharest:20260223T100000');
     expect(ics).toContain('LOCATION:C510');
@@ -46,6 +51,15 @@ describe('generateICS', () => {
     const rooms = { C510: 'FSEGA, etaj 5' };
     const ics = generateICS(entries, rooms);
     expect(ics).toContain('LOCATION:C510\\, FSEGA\\, etaj 5');
+  });
+
+  it('slugifies UIDs for multi-word subjects', () => {
+    const entries = [
+      { type: 'Laborator', subject: 'Medii de proiectare si programare', startHour: 8, endHour: 10, room: '', professor: '', dates: ['2026-02-23'] },
+    ];
+    const ics = generateICS(entries, {});
+    expect(ics).toContain('UID:20260223T08-Medii-de-proiectare-si-programare-Laborator@fmi-cal');
+    expect(ics).not.toMatch(/^UID:[^ \r\n]* [^ \r\n]*/m);
   });
 
   it('returns valid empty calendar when no entries', () => {

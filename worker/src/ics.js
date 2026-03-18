@@ -95,7 +95,8 @@ export function generateICS(entries, rooms) {
       const eh = String(e.endHour).padStart(2, '0');
       lines.push('BEGIN:VEVENT');
       lines.push(`DTSTAMP:${dtstamp}`);
-      lines.push(icsFold(`UID:${d}T${sh}-${e.subject}-${e.type}@fmi-cal`));
+      const slug = e.subject.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9\-]/g, '');
+      lines.push(icsFold(`UID:${d}T${sh}-${slug}-${e.type}@fmi-cal`));
       lines.push(`DTSTART;TZID=Europe/Bucharest:${d}T${sh}0000`);
       lines.push(`DTEND;TZID=Europe/Bucharest:${d}T${eh}0000`);
       lines.push(icsFold(`SUMMARY:${icsEscape(pfx + ' ' + e.subject)}`));

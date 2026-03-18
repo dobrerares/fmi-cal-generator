@@ -14,6 +14,55 @@ export default {
     const ORIGIN = env.ORIGIN_URL || 'https://orar-fmi.rdobre.ro';
     const url = new URL(request.url);
 
+    // Diagnostic: minimal static ICS to isolate Cloudflare vs content issues
+    if (url.pathname === '/test.ics') {
+      const now = new Date();
+      const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+      const testIcs = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//FMI Cal Generator//Test//RO',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'X-WR-CALNAME:FMI Test',
+        'BEGIN:VTIMEZONE',
+        'TZID:Europe/Bucharest',
+        'BEGIN:STANDARD',
+        'DTSTART:19701025T040000',
+        'RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=10',
+        'TZOFFSETFROM:+0300',
+        'TZOFFSETTO:+0200',
+        'TZNAME:EET',
+        'END:STANDARD',
+        'BEGIN:DAYLIGHT',
+        'DTSTART:19700329T030000',
+        'RRULE:FREQ=YEARLY;BYDAY=-1SU;BYMONTH=3',
+        'TZOFFSETFROM:+0200',
+        'TZOFFSETTO:+0300',
+        'TZNAME:EEST',
+        'END:DAYLIGHT',
+        'END:VTIMEZONE',
+        'BEGIN:VEVENT',
+        `DTSTAMP:${stamp}`,
+        'UID:test-event-1@fmi-cal',
+        'DTSTART;TZID=Europe/Bucharest:20260323T100000',
+        'DTEND;TZID=Europe/Bucharest:20260323T120000',
+        'SUMMARY:Test Event',
+        'SEQUENCE:0',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n') + '\r\n';
+      return new Response(testIcs, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/calendar; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="calendar.ics"',
+          'Cache-Control': 'public, max-age=3600',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
     // Support path-based (/ics/BASE64URL.ics), legacy path (/ics/BASE64URL),
     // and query-based (/ics?c=BASE64)
     let b64;
