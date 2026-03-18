@@ -1,4 +1,4 @@
-const CACHE_NAME = 'orar-fmi-v1';
+const CACHE_NAME = 'orar-fmi-v2';
 
 const PRECACHE_URLS = [
   '/',
