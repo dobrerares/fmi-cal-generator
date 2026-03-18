@@ -1836,11 +1836,11 @@
     if (calStates.length === 1) {
       // Single calendar: flat format for backward compatibility
       payload = calStates[0];
-      payload.f = selectedFreq;
+      payload.f = 'all';
     } else {
       // Multi-calendar: { cals: [...], f: freq }
       payload = { cals: calStates };
-      payload.f = selectedFreq;
+      payload.f = 'all';
     }
 
     var json = JSON.stringify(payload);

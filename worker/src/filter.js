@@ -42,6 +42,6 @@ export function deduplicateEntries(entries) {
 }
 
 export function filterByFrequency(entries, freq) {
-  if (freq === 'all') return entries;
+  if (freq === 'all' || freq === 'current') return entries;
   return entries.filter((e) => e.frequency === 'every' || e.frequency === freq);
 }
