@@ -14,12 +14,14 @@ export default {
     const ORIGIN = env.ORIGIN_URL || 'https://orar-fmi.rdobre.ro';
     const url = new URL(request.url);
 
-    // Support both path-based (/ics/BASE64URL) and query-based (/ics?c=BASE64)
+    // Support path-based (/ics/BASE64URL.ics), legacy path (/ics/BASE64URL),
+    // and query-based (/ics?c=BASE64)
     let b64;
     if (url.pathname.startsWith('/ics/')) {
-      // Path-based: base64url in the path segment
-      const b64url = decodeURIComponent(url.pathname.slice(5));
-      b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+      // Path-based: strip optional .ics extension, decode base64url
+      let seg = decodeURIComponent(url.pathname.slice(5));
+      if (seg.endsWith('.ics')) seg = seg.slice(0, -4);
+      b64 = seg.replace(/-/g, '+').replace(/_/g, '/');
       while (b64.length % 4) b64 += '=';
     } else if (url.pathname === '/ics') {
       b64 = url.searchParams.get('c');
@@ -76,6 +78,7 @@ export default {
         status: 200,
         headers: {
           'Content-Type': 'text/calendar; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="calendar.ics"',
           'Cache-Control': 'public, max-age=3600',
           'Access-Control-Allow-Origin': '*',
         },

@@ -85,17 +85,28 @@ describe('Worker fetch handler', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns valid ICS via path-based base64url route', async () => {
+  it('returns valid ICS via path-based base64url route with .ics extension', async () => {
     const b64url = encodeB64url({ s: 'M1', g: 0, sg: '1' });
-    const req = new Request(`https://cal.rdobre.ro/ics/${b64url}`);
+    const req = new Request(`https://cal.rdobre.ro/ics/${b64url}.ics`);
     const res = await worker.fetch(req, {});
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toBe('text/calendar; charset=utf-8');
+    expect(res.headers.get('Content-Disposition')).toBe('attachment; filename="calendar.ics"');
     const body = await res.text();
     expect(body).toContain('BEGIN:VCALENDAR');
     expect(body).toContain('Algebra');
     expect(body).toContain('L001');
     expect(body).not.toContain('L002');
+  });
+
+  it('returns valid ICS via path-based route without .ics extension', async () => {
+    const b64url = encodeB64url({ s: 'M1', g: 0, sg: '1' });
+    const req = new Request(`https://cal.rdobre.ro/ics/${b64url}`);
+    const res = await worker.fetch(req, {});
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('BEGIN:VCALENDAR');
+    expect(body).toContain('Algebra');
   });
 
   it('returns 404 for non /ics paths', async () => {

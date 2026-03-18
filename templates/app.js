@@ -2106,7 +2106,7 @@
     if (!c) return null;
     // Convert standard base64 to base64url (URL-safe, no query params needed)
     var b64url = c.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    return 'https://cal.rdobre.ro/ics/' + b64url;
+    return 'https://cal.rdobre.ro/ics/' + b64url + '.ics';
   }
 
   $('#subscribe-btn').addEventListener('click', function(e) {
