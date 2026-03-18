@@ -8,6 +8,16 @@ function icsEscape(s) {
     .replace(/\n/g, '\\n');
 }
 
+// RFC 5545 §3.1: lines SHOULD NOT exceed 75 octets; fold with CRLF + space
+function icsFold(line) {
+  if (line.length <= 75) return line;
+  const parts = [line.slice(0, 75)];
+  for (let i = 75; i < line.length; i += 74) {
+    parts.push(' ' + line.slice(i, i + 74));
+  }
+  return parts.join('\r\n');
+}
+
 export function generateICS(entries, rooms) {
   const PREFIX = { Curs: '[C]', Seminar: '[S]', Laborator: '[L]' };
   const now = new Date();
@@ -37,17 +47,17 @@ export function generateICS(entries, rooms) {
       const eh = String(e.endHour).padStart(2, '0');
       lines.push('BEGIN:VEVENT');
       lines.push(`DTSTAMP:${dtstamp}`);
-      lines.push(`UID:${d}T${sh}-${e.subject}-${e.type}@fmi-cal`);
+      lines.push(icsFold(`UID:${d}T${sh}-${e.subject}-${e.type}@fmi-cal`));
       lines.push(`DTSTART;TZID=Europe/Bucharest:${d}T${sh}0000`);
       lines.push(`DTEND;TZID=Europe/Bucharest:${d}T${eh}0000`);
-      lines.push(`SUMMARY:${icsEscape(pfx + ' ' + e.subject)}`);
+      lines.push(icsFold(`SUMMARY:${icsEscape(pfx + ' ' + e.subject)}`));
       if (e.room) {
         const loc = rooms[e.room]
           ? `${e.room}, ${rooms[e.room]}`
           : e.room;
-        lines.push(`LOCATION:${icsEscape(loc)}`);
+        lines.push(icsFold(`LOCATION:${icsEscape(loc)}`));
       }
-      if (e.professor) lines.push(`DESCRIPTION:${icsEscape(e.professor)}`);
+      if (e.professor) lines.push(icsFold(`DESCRIPTION:${icsEscape(e.professor)}`));
       lines.push('END:VEVENT');
     }
   }
