@@ -1327,7 +1327,7 @@ footer {
     display: block;
   }
 
-  .schedule-actions { display: none; }
+  .schedule-actions { display: none; gap: 0.75rem; }
 
   .schedule-grid {
     --hour-height: clamp(1.25rem, calc((100svh - 17rem) / 12.5), 3.5rem);
