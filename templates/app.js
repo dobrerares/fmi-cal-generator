@@ -1822,7 +1822,7 @@
     return state;
   }
 
-  function encodeStateToURL() {
+  function buildStatePayload() {
     // Collect states for all calendars that have a group selected
     var calStates = [];
     calendars.forEach(function(c) {
