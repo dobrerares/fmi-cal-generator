@@ -20,22 +20,6 @@ DAY_MAP = {
     "Duminica": 6,
 }
 
-# Table indices on the academic calendar page:
-#   0: Romanian Sem 1
-#   1: Romanian Sem 2
-#   2: Romanian Sem 2 Final year
-#   3: Hungarian/German Sem 1
-#   4: Hungarian/German Sem 2
-#   5: Hungarian/German Sem 2 Final year
-_TABLE_INDEX = {
-    ("romanian", 1): 0,
-    ("romanian", 2): 1,
-    ("hungarian", 1): 3,
-    ("hungarian", 2): 4,
-    ("german", 1): 3,
-    ("german", 2): 4,
-}
-
 
 def get_study_line(spec_code: str, spec_name: str = "") -> str:
     """Detect study line from the specialization code and/or name.
@@ -65,17 +49,35 @@ def fetch_academic_calendar(
 ) -> AcademicCalendar:
     """Scrape and parse the academic calendar from the university website."""
     resp = requests.get(ACADEMIC_CALENDAR_URL, timeout=15)
+    resp.raise_for_status()
     soup = BeautifulSoup(resp.content, "html.parser")
 
-    tables = soup.find_all("table")
-    table_idx = _TABLE_INDEX.get((study_line, semester))
-    if table_idx is None or table_idx >= len(tables):
-        raise ValueError(
-            f"Cannot find academic calendar table for {study_line} semester {semester}"
-        )
+    # Track semantic headings rather than global table positions: final-year
+    # variants can add tables between the study lines.
+    line_keyword = {
+        "romanian": "română",
+        "hungarian": "maghiară",
+        "german": "germană",
+    }.get(study_line)
+    if line_keyword is not None and semester in (1, 2):
+        in_study_line = False
+        in_semester = False
+        for node in soup.find_all(["h2", "p", "table"]):
+            if node.find_parent("table") is not None:
+                continue
+            text = " ".join(node.get_text(" ", strip=True).split()).lower()
+            if node.name == "h2":
+                in_study_line = line_keyword in text
+                in_semester = False
+            elif node.name == "p" and text.startswith("semestrul"):
+                expected = "semestrul " + ("i" if semester == 1 else "ii")
+                in_semester = text == expected
+            elif node.name == "table" and in_study_line and in_semester:
+                return _parse_calendar_table(node)
 
-    table = tables[table_idx]
-    return _parse_calendar_table(table)
+    raise ValueError(
+        f"Cannot find academic calendar table for {study_line} semester {semester}"
+    )
 
 
 def _parse_date(date_str: str) -> date:
@@ -109,7 +111,7 @@ def _parse_calendar_table(table) -> AcademicCalendar:
             continue
 
         date_range_text = cells[0].get_text(strip=True)
-        activity = cells[1].get_text(strip=True).lower()
+        activity = " ".join(cells[1].get_text(" ", strip=True).split()).lower()
         notes = cells[2].get_text(strip=True) if len(cells) > 2 else ""
 
         # Parse date range

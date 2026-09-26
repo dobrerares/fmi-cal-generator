@@ -105,7 +105,8 @@ def generate_index(site_dir: Path) -> str:
 
     # Fetch academic calendar data for teaching weeks / holidays
     try:
-        calendar = fetch_academic_calendar()
+        index_data = json.loads((site_dir / "data" / "index.json").read_text())
+        calendar = fetch_academic_calendar(semester=index_data["semester"])
         weeks = compute_teaching_weeks(calendar)
         teaching_weeks_json = json.dumps(
             [{"monday": str(monday), "week": week_num} for monday, week_num in weeks]

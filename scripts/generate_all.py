@@ -232,6 +232,7 @@ def main() -> None:
 
     # Write index.json
     index_data = {
+        "semester": semester_num,
         "specs": [
             {"name": name, "years": sorted(years, key=lambda y: y["year"])}
             for name, years in spec_index.items()

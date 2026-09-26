@@ -151,3 +151,42 @@ class TestGetDatesForEntry:
 
         assert date(2026, 4, 10) not in dates  # Good Friday
         assert date(2026, 5, 1) not in dates   # Labor Day is also Friday
+
+
+class TestAcademicCalendar2026:
+    def _fetch(self, line, semester, content=None):
+        response = MagicMock()
+        response.content = content or (FIXTURES / "academic_calendar_2026.html").read_bytes()
+        with patch("fmi_cal.academic.requests.get", return_value=response):
+            return fetch_academic_calendar(line, semester)
+
+    def test_semester_one_whitespace_and_holidays(self):
+        for line in ("romanian", "hungarian", "german"):
+            cal = self._fetch(line, 1)
+            assert cal.semester_start == date(2026, 9, 28)
+            assert cal.teaching_periods == [
+                TeachingPeriod(start=date(2026, 9, 28), end=date(2026, 12, 20)),
+                TeachingPeriod(start=date(2027, 1, 4), end=date(2027, 1, 17)),
+            ]
+            assert len(compute_teaching_weeks(cal)) == 14
+            assert set(cal.holidays) == {
+                date(2026, 11, 30), date(2026, 12, 1),
+                date(2027, 1, 6), date(2027, 1, 7),
+            }
+
+    def test_extra_final_year_tables_do_not_shift_study_lines(self):
+        romanian = self._fetch("romanian", 2)
+        hungarian = self._fetch("hungarian", 2)
+        german = self._fetch("german", 2)
+        assert romanian.semester_start == date(2027, 2, 22)
+        assert hungarian.semester_start == date(2027, 2, 22)
+        assert german == hungarian
+        assert len(compute_teaching_weeks(romanian)) == 14
+        assert len(compute_teaching_weeks(hungarian)) == 14
+        assert romanian.teaching_periods != hungarian.teaching_periods
+
+    def test_missing_section_fails_instead_of_using_another_table(self):
+        import pytest
+        content = b'<h2>Unrelated section</h2><table></table>'
+        with pytest.raises(ValueError, match="Cannot find academic calendar table"):
+            self._fetch("hungarian", 1, content)
