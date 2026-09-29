@@ -371,8 +371,10 @@
     wrapper.appendChild(header);
 
     // Accordion body
+    var accordionBody = document.createElement('div');
+    accordionBody.className = 'cal-accordion-body';
     var body = document.createElement('div');
-    body.className = 'cal-accordion-body';
+    body.className = 'cal-accordion-inner';
 
     // 1. Spec card
     var specCard = document.createElement('div');
@@ -442,7 +444,8 @@
       '<div class="check-group subject-list"></div>';
     body.appendChild(subjectsCard);
 
-    wrapper.appendChild(body);
+    accordionBody.appendChild(body);
+    wrapper.appendChild(accordionBody);
 
     // Store panel reference
     cal.panel = wrapper;

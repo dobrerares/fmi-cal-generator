@@ -1161,13 +1161,17 @@ footer {
 .cal-remove-btn:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
 
 .cal-accordion-body {
-  overflow: hidden;
-  transition: max-height 0.3s ease, opacity 0.25s ease;
-  max-height: 2000px;
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.3s ease, opacity 0.25s ease;
   opacity: 1;
 }
+.cal-accordion-inner {
+  min-height: 0;
+  overflow: hidden;
+}
 .calendar-accordion.collapsed .cal-accordion-body {
-  max-height: 0;
+  grid-template-rows: 0fr;
   opacity: 0;
   pointer-events: none;
 }
@@ -1228,7 +1232,6 @@ footer {
   max-height: 85vh;
   transform: translateY(calc(100% - 4rem));
   transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  touch-action: none;
 }
 
 .bottom-sheet.expanded {
@@ -1239,7 +1242,7 @@ footer {
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .bottom-sheet-handle {
@@ -1277,6 +1280,7 @@ footer {
 .bottom-sheet-content {
   padding: 0 1rem 1rem;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   max-height: calc(85vh - 4rem);
   opacity: 1;
   visibility: visible;
